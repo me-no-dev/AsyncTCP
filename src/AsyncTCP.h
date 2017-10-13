@@ -156,6 +156,8 @@ class AsyncClient {
     static int8_t _s_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len);
     static int8_t _s_connected(void* arg, void* tpcb, int8_t err);
     static void _s_dns_found(const char *name, struct _ip_addr *ipaddr, void *arg);
+
+    bool _in_lwip_thread;
 };
 
 class AsyncServer {
@@ -163,6 +165,7 @@ class AsyncServer {
     uint16_t _port;
     IPAddress _addr;
     bool _noDelay;
+    bool _in_lwip_thread;
     tcp_pcb* _pcb;
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;
