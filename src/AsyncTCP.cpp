@@ -91,11 +91,9 @@ static void _handle_async_event(lwip_event_packet_t * e){
 static void _async_service_task(void *pvParameters){
     lwip_event_packet_t * packet = NULL;
     for (;;) {
-        if(xQueueReceive(_async_queue, &packet, 0) == pdTRUE){
+        if(xQueueReceive(_async_queue, &packet, portMAX_DELAY) == pdTRUE){
             //dispatch packet
             _handle_async_event(packet);
-        } else {
-            vTaskDelay(1);
         }
     }
     vTaskDelete(NULL);
