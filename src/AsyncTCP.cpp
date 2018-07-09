@@ -29,6 +29,12 @@ extern "C"{
 #include "lwip/dns.h"
 }
 
+#if CONFIG_FREERTOS_UNICORE
+#define ASYNCTCP_RUNNING_CORE 0
+#else
+#define ASYNCTCP_RUNNING_CORE 1
+#endif
+
 /*
  * TCP/IP Event Task
  * */
@@ -115,7 +121,7 @@ static bool _start_async_task(){
         }
     }
     if(!_async_service_task_handle){
-        xTaskCreatePinnedToCore(_async_service_task, "async_tcp", 8192, NULL, 3, &_async_service_task_handle, 1);
+        xTaskCreatePinnedToCore(_async_service_task, "async_tcp", 8192, NULL, 3, &_async_service_task_handle, ASYNCTCP_RUNNING_CORE);
         if(!_async_service_task_handle){
             return false;
         }
