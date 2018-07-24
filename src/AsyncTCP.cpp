@@ -601,10 +601,12 @@ int8_t AsyncClient::abort(){
 }
 
 void AsyncClient::close(bool now){
-    if(_in_lwip_thread){
-        tcp_recved(_pcb, _rx_ack_len);
-    } else {
-        _tcp_recved(_pcb, _rx_ack_len);
+    if(_pcb){
+        if(_in_lwip_thread){
+            tcp_recved(_pcb, _rx_ack_len);
+        } else {
+            _tcp_recved(_pcb, _rx_ack_len);
+        }
     }
     if(now)
         _close();
