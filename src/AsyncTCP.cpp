@@ -40,7 +40,7 @@ extern "C"{
  * */
 
 typedef enum {
-    LWIP_TCP_SENT, LWIP_TCP_RECV, LWIP_TCP_ERROR, LWIP_TCP_POLL
+    LWIP_TCP_SENT, LWIP_TCP_RECV, LWIP_TCP_ERROR, LWIP_TCP_POLL, LWIP_TCP_CLEAR
 } lwip_event_t;
 
 typedef struct {
@@ -80,23 +80,6 @@ typedef struct {
 static xQueueHandle _async_queue;
 static TaskHandle_t _async_service_task_handle = NULL;
 
-static void _handle_async_event(lwip_event_packet_t * e){
-
-    if(e->event == LWIP_TCP_RECV){
-        //ets_printf("%c: 0x%08x 0x%08x\n", e->recv.pb?'R':'D', e->arg, e->recv.pcb);
-        AsyncClient::_s_recv(e->arg, e->recv.pcb, e->recv.pb, e->recv.err);
-    } else if(e->event == LWIP_TCP_SENT){
-        //ets_printf("S: 0x%08x 0x%08x\n", e->arg, e->sent.pcb);
-        AsyncClient::_s_sent(e->arg, e->sent.pcb, e->sent.len);
-    } else if(e->event == LWIP_TCP_POLL){
-        //ets_printf("P: 0x%08x 0x%08x\n", e->arg, e->poll.pcb);
-        AsyncClient::_s_poll(e->arg, e->poll.pcb);
-    } else if(e->event == LWIP_TCP_ERROR){
-        AsyncClient::_s_error(e->arg, e->error.err);
-    }
-    free((void*)(e));
-}
-
 static inline bool _init_async_event_queue(){
     if(!_async_queue){
         _async_queue = xQueueCreate(32, sizeof(lwip_event_packet_t *));
@@ -109,6 +92,10 @@ static inline bool _init_async_event_queue(){
 
 static inline bool _send_async_event(lwip_event_packet_t ** e){
     return _async_queue && xQueueSend(_async_queue, e, portMAX_DELAY) == pdPASS;
+}
+
+static inline bool _prepend_async_event(lwip_event_packet_t ** e){
+    return _async_queue && xQueueSendToFront(_async_queue, e, portMAX_DELAY) == pdPASS;
 }
 
 static inline bool _get_async_event(lwip_event_packet_t ** e){
@@ -153,6 +140,24 @@ static bool _remove_events_with_arg(void * arg){
     return true;
 }
 
+static void _handle_async_event(lwip_event_packet_t * e){
+    if(e->event == LWIP_TCP_CLEAR){
+        _remove_events_with_arg(e->arg);
+    } else if(e->event == LWIP_TCP_RECV){
+        //ets_printf("%c: 0x%08x 0x%08x\n", e->recv.pb?'R':'D', e->arg, e->recv.pcb);
+        AsyncClient::_s_recv(e->arg, e->recv.pcb, e->recv.pb, e->recv.err);
+    } else if(e->event == LWIP_TCP_SENT){
+        //ets_printf("S: 0x%08x 0x%08x\n", e->arg, e->sent.pcb);
+        AsyncClient::_s_sent(e->arg, e->sent.pcb, e->sent.len);
+    } else if(e->event == LWIP_TCP_POLL){
+        //ets_printf("P: 0x%08x 0x%08x\n", e->arg, e->poll.pcb);
+        AsyncClient::_s_poll(e->arg, e->poll.pcb);
+    } else if(e->event == LWIP_TCP_ERROR){
+        AsyncClient::_s_error(e->arg, e->error.err);
+    }
+    free((void*)(e));
+}
+
 static void _async_service_task(void *pvParameters){
     lwip_event_packet_t * packet = NULL;
     for (;;) {
@@ -187,6 +192,16 @@ static bool _start_async_task(){
 /*
  * LwIP Callbacks
  * */
+
+static int8_t _tcp_clear_events(void * arg) {
+    lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    e->event = LWIP_TCP_CLEAR;
+    e->arg = arg;
+    if (!_prepend_async_event(&e)) {
+        free((void*)(e));
+    }
+    return ERR_OK;
+}
 
 static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
@@ -514,7 +529,7 @@ int8_t AsyncClient::_close(){
             err = abort();
         }
         _pcb = NULL;
-        _remove_events_with_arg(this);
+        _tcp_clear_events(this);
         if(_discard_cb)
             _discard_cb(_discard_cb_arg, this);
     }
