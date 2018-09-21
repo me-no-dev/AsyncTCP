@@ -1161,9 +1161,9 @@ void AsyncServer::end(){
         tcp_arg(_pcb, NULL);
         tcp_accept(_pcb, NULL);
         if(_in_lwip_thread){
-            tcp_abort(_pcb);
+            tcp_close(_pcb);
         } else {
-            _tcp_abort(_pcb);
+            _tcp_close(_pcb);
         }
         _pcb = NULL;
     }
