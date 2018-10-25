@@ -1099,7 +1099,6 @@ int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
 }
 
 void AsyncClient::_s_data(void *arg, struct tcp_pcb *tcp, uint8_t * data, size_t len){
-  log_i("_s_data");
   AsyncClient *c = reinterpret_cast<AsyncClient*>(arg);
   if(c->_recv_cb)
     c->_recv_cb(c->_recv_cb_arg, c, data, len);
@@ -1107,7 +1106,6 @@ void AsyncClient::_s_data(void *arg, struct tcp_pcb *tcp, uint8_t * data, size_t
 
 void AsyncClient::_s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl){
   AsyncClient *c = reinterpret_cast<AsyncClient*>(arg);
-  log_i("_s_handshake: done!");
   c->_handshake_done = true;
   if(c->_connect_cb)
     c->_connect_cb(c->_connect_cb_arg, c);
