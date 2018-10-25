@@ -50,7 +50,8 @@ struct ip_addr;
 class AsyncClient {
   protected:
     tcp_pcb* _pcb;
-    // sslclient_context* _ssl_context;
+    // char* _hostname;
+    std::string _hostname;
 
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;

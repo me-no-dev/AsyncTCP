@@ -215,7 +215,6 @@ static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
 }
 
 static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_t err) {
-    log_i("_tcp_recv");
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_RECV;
     e->arg = arg;
@@ -229,7 +228,6 @@ static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_
 }
 
 static int8_t _tcp_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
-    log_e("_tcp_sent");
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_SENT;
     e->arg = arg;
@@ -520,7 +518,6 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other){
 int8_t AsyncClient::_connected(void* pcb, int8_t err){
     _pcb = reinterpret_cast<tcp_pcb*>(pcb);
 
-    log_i("error: %d", err);
     if(_pcb){
         _rx_last_packet = millis();
         _pcb_busy = false;
@@ -529,12 +526,11 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
         tcp_poll(_pcb, &_tcp_poll, 1);
 
         if(_pcb_secure){
-          tcp_ssl_arg(_pcb, this);
-            log_e("_pcb: 0x%x", _pcb);
-            if(tcp_ssl_new_client(_pcb) < 0){
+            if(tcp_ssl_new_client(_pcb, _hostname.empty() ? NULL : _hostname.c_str()) < 0){
+                log_e("closing....");
                 return _close();
             }
-
+ 
             tcp_ssl_arg(_pcb, this);
             tcp_ssl_data(_pcb, &_s_data);
             tcp_ssl_handshake(_pcb, &_s_handshake);
@@ -550,6 +546,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
 
 int8_t AsyncClient::_close(){
     int8_t err = ERR_OK;
+
     if(_pcb) {
         if(_pcb_secure){
             tcp_ssl_free(_pcb);
@@ -597,7 +594,6 @@ void AsyncClient::_ssl_error(int8_t err){
 }
 
 int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
-    log_e("_sent");
     if (_pcb_secure && !_handshake_done)
         return ERR_OK;
 
@@ -611,7 +607,6 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
 }
 
 int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
-    log_e("_recv");
     if(!_pcb || pcb != _pcb){
          log_e("0x%08x != 0x%08x", (uint32_t)pcb, (uint32_t)_pcb);
          if(pb){
@@ -689,6 +684,13 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
         _close();
         return ERR_OK;
     }
+    // if(!_handshake_done) {
+    //     _in_lwip_thread = true;
+    //     tcp_ssl_handshake_step(pcb);
+    //     _in_lwip_thread = false;
+
+    //     return ERR_OK;
+    // }
     // Everything is fine
     if(_poll_cb)
         _poll_cb(_poll_cb_arg, this);
@@ -697,6 +699,9 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 
 void AsyncClient::_dns_found(struct ip_addr *ipaddr){
     _in_lwip_thread = true;
+    Serial.print("ip: ");
+    Serial.println(ipaddr_ntoa(ipaddr));
+
     if(ipaddr){
         connect(IPAddress(ipaddr->u_addr.ip4.addr), _connect_port, _pcb_secure);
     } else {
@@ -716,19 +721,15 @@ bool AsyncClient::operator==(const AsyncClient &other) {
 bool AsyncClient::connect(const char* host, uint16_t port, bool secure){
     ip_addr_t addr;
 
-    Serial.print("connect ip: ");
-    Serial.println(secure);
-
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_s_dns_found, this);
     if(err == ERR_OK) {
-        Serial.print("connect a ip: ");
-        Serial.println(secure);
+        // @ToDo: do this at one place.
+        _hostname = std::string(host);
 
         return connect(IPAddress(addr.u_addr.ip4.addr), port, secure);
     } else if(err == ERR_INPROGRESS) {
-
-        Serial.print("connect b ip: ");
-        Serial.println(secure);
+        // @ToDo: do this at one place.
+        _hostname = std::string(host);
 
         _connect_port = port;
         _pcb_secure = secure;
@@ -811,6 +812,7 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
             //_tx_unacked_len += sent;
             return sent;
         }
+        log_i("add: tcp_ssl_write: %d", sent);
         _close();
         return 0;
     }
@@ -1041,8 +1043,6 @@ void AsyncClient::onPoll(AcConnectHandler cb, void* arg){
     _poll_cb_arg = arg;
 }
 
-
-// void AsyncClient::_s_dns_found(const char * name, ip_addr_t * ipaddr, void * arg){
 void AsyncClient::_s_dns_found(const char * name, struct ip_addr * ipaddr, void * arg){
     if(arg){
         reinterpret_cast<AsyncClient*>(arg)->_dns_found(ipaddr);

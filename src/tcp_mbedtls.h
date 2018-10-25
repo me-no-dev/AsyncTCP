@@ -28,9 +28,10 @@ typedef void (* tcp_ssl_handshake_cb_t)(void *arg, struct tcp_pcb *tcp, struct t
 typedef void (* tcp_ssl_error_cb_t)(void *arg, struct tcp_pcb *tcp, int8_t error);
 
 uint8_t tcp_ssl_has_client();
-int tcp_ssl_new_client(struct tcp_pcb *tcp);
+int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname);
 int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len);
 int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p);
+int tcp_ssl_handshake_step(struct tcp_pcb *tcp);
 int tcp_ssl_free(struct tcp_pcb *tcp);
 bool tcp_ssl_has(struct tcp_pcb *tcp);
 void tcp_ssl_arg(struct tcp_pcb *tcp, void * arg);
