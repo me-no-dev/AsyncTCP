@@ -116,6 +116,8 @@ int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
   if (pread_buf != NULL){
     recv_len = pbuf_copy_partial(tcp_ssl->tcp_pbuf, read_buf, len, tcp_ssl->pbuf_offset);
     tcp_ssl->pbuf_offset += recv_len;
+
+    TCP_SSL_DEBUG("tcp_ssl_recv: recv_len: %d, pbuf_offset: %d.\n", recv_len, tcp_ssl->pbuf_offset);
   }
 
   if (recv_len != 0) {
@@ -128,6 +130,10 @@ int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
 
   free(pread_buf);
   pread_buf = NULL;
+
+  if(recv_len == 0) {
+    return MBEDTLS_ERR_SSL_WANT_READ;
+  }
 
   return recv_len;
 }
@@ -290,7 +296,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
  
   mbedtls_ssl_conf_verify(&tcp_ssl->ssl_conf, my_verify, NULL);
   mbedtls_ssl_conf_dbg(&tcp_ssl->ssl_conf, my_debug, NULL);
-  //mbedtls_debug_set_threshold(2);
+  // mbedtls_debug_set_threshold(2);
 
   if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
     tcp_ssl_free(tcp);
@@ -308,7 +314,6 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
     return handle_error(ret);
   }
 
-  // @ToDo: don't need the fd?
   return ERR_OK;
 }
 
@@ -386,12 +391,13 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
 
         if(tcp_ssl->on_handshake)
           tcp_ssl->on_handshake(tcp_ssl->arg, tcp_ssl->tcp, tcp_ssl);
-      } else if(ret != MBEDTLS_ERR_SSL_WANT_READ || ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-        // if(fd_data->on_error)
-        //   fd_data->on_error(fd_data->arg, fd_data->tcp, ret);
+      } else if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
         TCP_SSL_DEBUG("handshake error: %d\n", ret);
-        // return ret;
-        return 0;
+
+        if(tcp_ssl->on_error)
+          tcp_ssl->on_error(tcp_ssl->arg, tcp_ssl->tcp, ret);
+
+        return ret;
       }
     } else {
       read_bytes = mbedtls_ssl_read(&tcp_ssl->ssl_ctx, &read_buf, read_buf_size);
