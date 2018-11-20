@@ -626,11 +626,12 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             // log_i("_recv: %d\n", pb->tot_len);
             int read_bytes = tcp_ssl_read(pcb, pb);
             if(read_bytes < 0){
-            if (read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-                log_e("_recv err: %d\n", read_bytes);
-                _close();
-            }
-            //return read_bytes;
+                if (read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+                    log_e("_recv err: %d\n", read_bytes);
+                    _close();
+                }
+                
+                //return read_bytes;
             }
             return ERR_OK;
         }
@@ -684,13 +685,6 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
         _close();
         return ERR_OK;
     }
-    // if(!_handshake_done) {
-    //     _in_lwip_thread = true;
-    //     tcp_ssl_handshake_step(pcb);
-    //     _in_lwip_thread = false;
-
-    //     return ERR_OK;
-    // }
     // Everything is fine
     if(_poll_cb)
         _poll_cb(_poll_cb_arg, this);
@@ -812,7 +806,7 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
             //_tx_unacked_len += sent;
             return sent;
         }
-        log_i("add: tcp_ssl_write: %d", sent);
+        //log_i("add: tcp_ssl_write: %d", sent);
         _close();
         return 0;
     }

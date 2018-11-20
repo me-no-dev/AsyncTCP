@@ -7,7 +7,6 @@
 #include "mbedtls/debug.h"
 #include "mbedtls/esp_debug.h"
 #include <string.h>
-
 #include "mbedtls/debug.h"
 
 // #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
@@ -15,8 +14,7 @@
 
 static const char pers[] = "esp32-tls";
 
-static int handle_error(int err)
-{
+static int handle_error(int err) {
     if(err == -30848){
         return err;
     }
@@ -29,48 +27,45 @@ static int handle_error(int err)
     return err;
 }
 
-static void my_debug(void *ctx, int level, const char *file, int line,
-                         const char *str)
+// static void my_debug(void *ctx, int level, const char *file, int line, const char *str) {
+//     const char *p, *basename;
+//     (void) ctx;
+
+//     /* Extract basename from file */
+//     for(p = basename = file; *p != '\0'; p++) {
+//         if(*p == '/' || *p == '\\') {
+//             basename = p + 1;
+//         }
+//     }
+
+//     mbedtls_printf("%s:%04d: |%d| %s", basename, line, level, str);
+// }
+
+/**
+ * Certificate verification callback for mbed TLS
+ * Here we only use it to display information on each cert in the chain
+ */
+static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
+    const uint32_t buf_size = 1024;
+    //char *buf = new char[buf_size];
+    char buf[buf_size];
+    (void) data;
+
+    mbedtls_printf("\nVerifying certificate at depth %d:\n", depth);
+    mbedtls_x509_crt_info(buf, buf_size - 1, "  ", crt);
+    mbedtls_printf("%s", buf);
+
+    if (*flags == 0)
+        mbedtls_printf("No verification issue for this certificate\n");
+    else
     {
-        const char *p, *basename;
-        (void) ctx;
-
-        /* Extract basename from file */
-        for(p = basename = file; *p != '\0'; p++) {
-            if(*p == '/' || *p == '\\') {
-                basename = p + 1;
-            }
-        }
-
-        mbedtls_printf("%s:%04d: |%d| %s", basename, line, level, str);
+        mbedtls_x509_crt_verify_info(buf, buf_size, "  ! ", *flags);
+        mbedtls_printf("%s\n", buf);
     }
 
-    /**
-     * Certificate verification callback for mbed TLS
-     * Here we only use it to display information on each cert in the chain
-     */
-    static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
-    {
-        const uint32_t buf_size = 1024;
-        //char *buf = new char[buf_size];
-        char buf[buf_size];
-        (void) data;
-
-        mbedtls_printf("\nVerifying certificate at depth %d:\n", depth);
-        mbedtls_x509_crt_info(buf, buf_size - 1, "  ", crt);
-        mbedtls_printf("%s", buf);
-
-        if (*flags == 0)
-            mbedtls_printf("No verification issue for this certificate\n");
-        else
-        {
-            mbedtls_x509_crt_verify_info(buf, buf_size, "  ! ", *flags);
-            mbedtls_printf("%s\n", buf);
-        }
-
-        //delete[] buf;
-        return 0;
-    }
+    //delete[] buf;
+    return 0;
+}
 
 static uint8_t _tcp_ssl_has_client = 0;
 
@@ -104,8 +99,6 @@ int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
   uint8_t *pread_buf = NULL;
   u16_t recv_len = 0;
 
-  TCP_SSL_DEBUG("tcp_ssl_recv: ctx: 0x%X, buf: 0x%X, len: %d\n", ctx, buf, len);
-
   if(tcp_ssl->tcp_pbuf == NULL || tcp_ssl->tcp_pbuf->tot_len == 0) {
     TCP_SSL_DEBUG("tcp_ssl_recv: not yet ready to read: tcp_pbuf: 0x%X.\n", tcp_ssl->tcp_pbuf);
     return MBEDTLS_ERR_SSL_WANT_READ;
@@ -115,11 +108,11 @@ int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
   pread_buf = read_buf;
   if (pread_buf != NULL){
     recv_len = pbuf_copy_partial(tcp_ssl->tcp_pbuf, read_buf, len, tcp_ssl->pbuf_offset);
+    TCP_SSL_DEBUG("tcp_ssl_recv: len: %d, recv_len: %d, pbuf_offset: %d, tcp_pbuf len: %d.\n", len, recv_len, tcp_ssl->pbuf_offset, tcp_ssl->tcp_pbuf->len);
     tcp_ssl->pbuf_offset += recv_len;
-
-    TCP_SSL_DEBUG("tcp_ssl_recv: recv_len: %d, pbuf_offset: %d.\n", recv_len, tcp_ssl->pbuf_offset);
   }
 
+  // Note: why copy again?
   if (recv_len != 0) {
     memcpy(buf, read_buf, recv_len);
   }
@@ -295,7 +288,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
   mbedtls_ssl_conf_rng(&tcp_ssl->ssl_conf, mbedtls_ctr_drbg_random, &tcp_ssl->drbg_ctx);
  
   mbedtls_ssl_conf_verify(&tcp_ssl->ssl_conf, my_verify, NULL);
-  mbedtls_ssl_conf_dbg(&tcp_ssl->ssl_conf, my_debug, NULL);
+  // mbedtls_ssl_conf_dbg(&tcp_ssl->ssl_conf, my_debug, NULL);
   // mbedtls_debug_set_threshold(2);
 
   if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
@@ -324,8 +317,6 @@ int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
   
   tcp_ssl_t * tcp_ssl = tcp_ssl_get(tcp);
 
-  TCP_SSL_DEBUG("tcp_ssl_write %x, state: %d\n", tcp_ssl, tcp->state);
-
   if(tcp_ssl == NULL){
     TCP_SSL_DEBUG("tcp_ssl_write: tcp_ssl is NULL\n");
     return 0;
@@ -353,8 +344,6 @@ int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
 }
 
 int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
-  TCP_SSL_DEBUG("tcp_ssl_ssl_read\n");
-
   if(tcp == NULL) {
     return -1;
   }
@@ -397,13 +386,17 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
         if(tcp_ssl->on_error)
           tcp_ssl->on_error(tcp_ssl->arg, tcp_ssl->tcp, ret);
 
-        return ret;
+        break;
       }
     } else {
       read_bytes = mbedtls_ssl_read(&tcp_ssl->ssl_ctx, &read_buf, read_buf_size);
-      TCP_SSL_DEBUG("tcp_ssl_read: read_bytes: %d\n", read_bytes);
+      TCP_SSL_DEBUG("tcp_ssl_read: read_bytes: %d, total_bytes: %d, tot_len: %d, pbuf_offset: %d\r\n", read_bytes, total_bytes, p->tot_len, tcp_ssl->pbuf_offset);
+      // TCP_SSL_DEBUG("tcp_ssl_read: %s<-\n", read_buf);
       if(read_bytes < 0) { // SSL_OK
-        // MBEDTLS_ERR_SSL_CONN_EOF
+        if(read_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
+          TCP_SSL_DEBUG("tcp_ssl_read: need to wait\n");
+          break;
+        }
         if(read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
           TCP_SSL_DEBUG("tcp_ssl_read: read error: %d\n", read_bytes);
         }
@@ -416,7 +409,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
         total_bytes+= read_bytes;
       }
     }
-  } while (p->tot_len - tcp_ssl->pbuf_offset > 0);
+  } while (p->tot_len - tcp_ssl->pbuf_offset > 0 || read_bytes > 0);
 
   tcp_recved(tcp, p->tot_len);
   tcp_ssl->tcp_pbuf = NULL;
