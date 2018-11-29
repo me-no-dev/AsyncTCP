@@ -27,45 +27,29 @@ static int handle_error(int err) {
     return err;
 }
 
-// static void my_debug(void *ctx, int level, const char *file, int line, const char *str) {
-//     const char *p, *basename;
-//     (void) ctx;
-
-//     /* Extract basename from file */
-//     for(p = basename = file; *p != '\0'; p++) {
-//         if(*p == '/' || *p == '\\') {
-//             basename = p + 1;
-//         }
-//     }
-
-//     mbedtls_printf("%s:%04d: |%d| %s", basename, line, level, str);
-// }
-
 /**
  * Certificate verification callback for mbed TLS
  * Here we only use it to display information on each cert in the chain
  */
-static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
-    const uint32_t buf_size = 1024;
-    //char *buf = new char[buf_size];
-    char buf[buf_size];
-    (void) data;
+// static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
+//     const uint32_t buf_size = 1024;
+//     char buf[buf_size];
+//     (void) data;
 
-    mbedtls_printf("\nVerifying certificate at depth %d:\n", depth);
-    mbedtls_x509_crt_info(buf, buf_size - 1, "  ", crt);
-    mbedtls_printf("%s", buf);
+//     mbedtls_printf("\nVerifying certificate at depth %d:\n", depth);
+//     mbedtls_x509_crt_info(buf, buf_size - 1, "  ", crt);
+//     mbedtls_printf("%s", buf);
 
-    if (*flags == 0)
-        mbedtls_printf("No verification issue for this certificate\n");
-    else
-    {
-        mbedtls_x509_crt_verify_info(buf, buf_size, "  ! ", *flags);
-        mbedtls_printf("%s\n", buf);
-    }
+//     if (*flags == 0)
+//         mbedtls_printf("No verification issue for this certificate\n");
+//     else
+//     {
+//         mbedtls_x509_crt_verify_info(buf, buf_size, "  ! ", *flags);
+//         mbedtls_printf("%s\n", buf);
+//     }
 
-    //delete[] buf;
-    return 0;
-}
+//     return 0;
+// }
 
 static uint8_t _tcp_ssl_has_client = 0;
 
@@ -208,7 +192,6 @@ tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp) {
   new_item->tcp_pbuf = NULL;
   new_item->pbuf_offset = 0;
   new_item->next = NULL;
-  // new_item->fd = tcp_ssl_next_fd++;
 
   if(tcp_ssl_array == NULL){
     tcp_ssl_array = new_item;
@@ -275,7 +258,6 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
   
   int ret = 0;
 
-  // @ToDo: required?
   if(hostname != NULL) {
     TCP_SSL_DEBUG("setting the hostname: %s\n", hostname);
     if((ret = mbedtls_ssl_set_hostname(&tcp_ssl->ssl_ctx, hostname)) != 0){
@@ -286,10 +268,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
   }
 
   mbedtls_ssl_conf_rng(&tcp_ssl->ssl_conf, mbedtls_ctr_drbg_random, &tcp_ssl->drbg_ctx);
- 
-  mbedtls_ssl_conf_verify(&tcp_ssl->ssl_conf, my_verify, NULL);
-  // mbedtls_ssl_conf_dbg(&tcp_ssl->ssl_conf, my_debug, NULL);
-  // mbedtls_debug_set_threshold(2);
+  // mbedtls_ssl_conf_verify(&tcp_ssl->ssl_conf, my_verify, NULL);
 
   if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
     tcp_ssl_free(tcp);
@@ -298,7 +277,6 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
   }
 
   mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, (void*)tcp_ssl, tcp_ssl_send, tcp_ssl_recv, NULL);
-  // mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, &tcp_ssl->fd, mbedtls_net_send, mbedtls_net_recv, NULL );
 
   // Start handshake.
   ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
@@ -318,16 +296,12 @@ int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
   tcp_ssl_t * tcp_ssl = tcp_ssl_get(tcp);
 
   if(tcp_ssl == NULL){
-    TCP_SSL_DEBUG("tcp_ssl_write: tcp_ssl is NULL\n");
     return 0;
   }
 
   tcp_ssl->last_wr = 0;
 
-  TCP_SSL_DEBUG("about to call mbedtls_ssl_write\n");
   int rc = mbedtls_ssl_write(&tcp_ssl->ssl_ctx, data, len);
-
-  TCP_SSL_DEBUG("tcp_ssl_write: %u -> %d (%d)\r\n", len, tcp_ssl->last_wr, rc);
 
   if (rc < 0){
     if (rc != MBEDTLS_ERR_SSL_WANT_READ && rc != MBEDTLS_ERR_SSL_WANT_WRITE) {
@@ -356,16 +330,14 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
 
   tcp_ssl = tcp_ssl_get(tcp);
   if(tcp_ssl == NULL) {
-    TCP_SSL_DEBUG("tcp_ssl_read: tcp_ssl is NULL\n");
     return ERR_TCP_SSL_INVALID_CLIENTFD_DATA;
   }
 
   if(p == NULL) {
-    TCP_SSL_DEBUG("tcp_ssl_read:p == NULL\n");
     return ERR_TCP_SSL_INVALID_DATA;
   }
 
-  TCP_SSL_DEBUG("READY TO READ SOME DATA\n");
+  // TCP_SSL_DEBUG("READY TO READ SOME DATA\n");
 
   tcp_ssl->tcp_pbuf = p;
   tcp_ssl->pbuf_offset = 0;
@@ -391,13 +363,10 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
     } else {
       read_bytes = mbedtls_ssl_read(&tcp_ssl->ssl_ctx, &read_buf, read_buf_size);
       TCP_SSL_DEBUG("tcp_ssl_read: read_bytes: %d, total_bytes: %d, tot_len: %d, pbuf_offset: %d\r\n", read_bytes, total_bytes, p->tot_len, tcp_ssl->pbuf_offset);
-      // TCP_SSL_DEBUG("tcp_ssl_read: %s<-\n", read_buf);
       if(read_bytes < 0) { // SSL_OK
         if(read_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
-          TCP_SSL_DEBUG("tcp_ssl_read: need to wait\n");
           break;
-        }
-        if(read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+        } else if(read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
           TCP_SSL_DEBUG("tcp_ssl_read: read error: %d\n", read_bytes);
         }
         total_bytes = read_bytes;
@@ -415,8 +384,6 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
   tcp_ssl->tcp_pbuf = NULL;
   pbuf_free(p);
 
-  TCP_SSL_DEBUG("tcp_ssl_read: eof: %d\n", total_bytes);
-
   return total_bytes;
 }
 
@@ -430,7 +397,6 @@ int tcp_ssl_free(struct tcp_pcb *tcp) {
     if(item->tcp_pbuf != NULL) {
       pbuf_free(item->tcp_pbuf);
     }
-    TCP_SSL_DEBUG("tcp_ssl_free: %x\n", item);
     mbedtls_ssl_free(&item->ssl_ctx);
     mbedtls_ssl_config_free(&item->ssl_conf);
     mbedtls_ctr_drbg_free(&item->drbg_ctx);
