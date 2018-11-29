@@ -1,13 +1,8 @@
-#define DEBUG true
-#define CONFIG_MBEDTLS_DEBUG true
-#define DEBUG_LEVEL 4
-
 #include "tcp_mbedtls.h"
 #include "lwip/tcp.h"
 #include "mbedtls/debug.h"
 #include "mbedtls/esp_debug.h"
 #include <string.h>
-#include "mbedtls/debug.h"
 
 // #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
 #define TCP_SSL_DEBUG(...) 
