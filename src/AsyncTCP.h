@@ -45,7 +45,7 @@ typedef std::function<void(void*, AsyncClient*, struct pbuf *pb)> AcPacketHandle
 typedef std::function<void(void*, AsyncClient*, uint32_t time)> AcTimeoutHandler;
 
 struct tcp_pcb;
-struct ip_addr;
+struct _ip_addr;
 
 class AsyncClient {
   protected:
@@ -87,7 +87,7 @@ class AsyncClient {
     void _ssl_error(int8_t err);
     int8_t _poll(tcp_pcb* pcb);
     int8_t _sent(tcp_pcb* pcb, uint16_t len);
-    void _dns_found(struct ip_addr *ipaddr);
+    void _dns_found(struct _ip_addr *ipaddr);
     static void _s_data(void *arg, struct tcp_pcb *tcp, uint8_t * data, size_t len);
     static void _s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl);
     static void _s_ssl_error(void *arg, struct tcp_pcb *tcp, int8_t err);
@@ -116,13 +116,13 @@ class AsyncClient {
 
     bool canSend();//ack is not pending
     size_t space();
-    size_t add(const char* data, size_t size, uint8_t apiflags=ASYNC_WRITE_FLAG_COPY);//add for sending
+    size_t add(const char* data, size_t size, uint8_t apiflags=0);//add for sending
     bool send();//send all data added with the method above
     size_t ack(size_t len); //ack data that you have not acked using the method below
     void ackLater(){ _ack_pcb = false; } //will not ack the current packet. Call from onData
 
     size_t write(const char* data);
-    size_t write(const char* data, size_t size, uint8_t apiflags=ASYNC_WRITE_FLAG_COPY); //only when canSend() == true
+    size_t write(const char* data, size_t size, uint8_t apiflags=0); //only when canSend() == true
 
     uint8_t state();
     bool connecting();
@@ -169,7 +169,7 @@ class AsyncClient {
     static void _s_error(void *arg, int8_t err);
     static int8_t _s_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len);
     static int8_t _s_connected(void* arg, void* tpcb, int8_t err);
-    static void _s_dns_found(const char *name, struct ip_addr *ipaddr, void *arg);
+    static void _s_dns_found(const char *name, struct _ip_addr *ipaddr, void *arg);
 
     bool _in_lwip_thread;
 };
