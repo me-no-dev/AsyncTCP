@@ -421,6 +421,10 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 , _timeout_cb(0)
 , _timeout_cb_arg(0)
 , _pcb_busy(false)
+#if ASYNC_TCP_SSL_ENABLED
+, _pcb_secure(false)
+, _handshake_done(true)
+#endif // ASYNC_TCP_SSL_ENABLED
 , _pcb_sent_at(0)
 , _close_pcb(false)
 , _ack_pcb(true)
@@ -449,7 +453,11 @@ AsyncClient::~AsyncClient(){
         _close();
 }
 
+#if ASYNC_TCP_SSL_ENABLED
 bool AsyncClient::connect(IPAddress ip, uint16_t port, bool secure){
+#else
+bool AsyncClient::connect(IPAddress ip, uint16_t port){
+#endif // ASYNC_TCP_SSL_ENABLED
     if (_pcb){
         log_w("already connected, state %d", _pcb->state);
         return false;
@@ -469,19 +477,16 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port, bool secure){
         return false;
     }
 
-    Serial.print("connect res ip: ");
-    Serial.println(secure);
-
+#if ASYNC_TCP_SSL_ENABLED
     _pcb_secure = secure;
     _handshake_done = !secure;
+#endif // ASYNC_TCP_SSL_ENABLED
 
     tcp_arg(pcb, this);
     tcp_err(pcb, &_tcp_error);
     if(_in_lwip_thread){
-        log_i("tcp_connect-1: _in_lwip_thread: %d", _in_lwip_thread);
         tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
     } else {
-        log_i("tcp_connect-2: _in_lwip_thread: %d", _in_lwip_thread);
         _tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
     }
     return true;
@@ -500,6 +505,7 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other){
         tcp_err(_pcb, &_tcp_error);
         tcp_poll(_pcb, &_tcp_poll, 1);
 
+#if ASYNC_TCP_SSL_ENABLED
         if(tcp_ssl_has(_pcb)){
             _pcb_secure = true;
             _handshake_done = false;
@@ -511,6 +517,7 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other){
             _pcb_secure = false;
             _handshake_done = true;
         }
+#endif // ASYNC_TCP_SSL_ENABLED
     }
     return *this;
 }
@@ -524,7 +531,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
         tcp_recv(_pcb, &_tcp_recv);
         tcp_sent(_pcb, &_tcp_sent);
         tcp_poll(_pcb, &_tcp_poll, 1);
-
+#if ASYNC_TCP_SSL_ENABLED
         if(_pcb_secure){
             if(tcp_ssl_new_client(_pcb, _hostname.empty() ? NULL : _hostname.c_str()) < 0){
                 log_e("closing....");
@@ -536,11 +543,18 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
             tcp_ssl_handshake(_pcb, &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
         }
+#endif // ASYNC_TCP_SSL_ENABLED
     }
+
     _in_lwip_thread = true;
+#if ASYNC_TCP_SSL_ENABLED
     if(!_pcb_secure && _connect_cb)
+#else
+    if(_connect_cb)
+#endif // ASYNC_TCP_SSL_ENABLED
         _connect_cb(_connect_cb_arg, this);
     _in_lwip_thread = false;
+
     return ERR_OK;
 }
 
@@ -548,9 +562,11 @@ int8_t AsyncClient::_close(){
     int8_t err = ERR_OK;
 
     if(_pcb) {
+#if ASYNC_TCP_SSL_ENABLED
         if(_pcb_secure){
             tcp_ssl_free(_pcb);
         }
+#endif // ASYNC_TCP_SSL_ENABLED
         tcp_arg(_pcb, NULL);
         tcp_sent(_pcb, NULL);
         tcp_recv(_pcb, NULL);
@@ -588,14 +604,18 @@ void AsyncClient::_error(int8_t err) {
         _discard_cb(_discard_cb_arg, this);
 }
 
+#if ASYNC_TCP_SSL_ENABLED
 void AsyncClient::_ssl_error(int8_t err){
   if(_error_cb)
     _error_cb(_error_cb_arg, this, err+64);
 }
+#endif // ASYNC_TCP_SSL_ENABLED
 
 int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
+#if ASYNC_TCP_SSL_ENABLED
     if (_pcb_secure && !_handshake_done)
         return ERR_OK;
+#endif // ASYNC_TCP_SSL_ENABLED
 
     _in_lwip_thread = false;
     _rx_last_packet = millis();
@@ -621,6 +641,7 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
 
     while(pb != NULL){
         _rx_last_packet = millis();
+#if ASYNC_TCP_SSL_ENABLED
         if(_pcb_secure){
             // log_i("_recv: %d\n", pb->tot_len);
             int read_bytes = tcp_ssl_read(pcb, pb);
@@ -634,6 +655,7 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             }
             return ERR_OK;
         }
+#endif // ASYNC_TCP_SSL_ENABLED
         //we should not ack before we assimilate the data
         //log_i("%u", pb->len);
         //Serial.write((const uint8_t *)pb->payload, pb->len);
@@ -680,10 +702,12 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
         _close();
         return ERR_OK;
     }
+#if ASYNC_TCP_SSL_ENABLED
     if(_pcb_secure && !_handshake_done && (now - _rx_last_packet) >= 2000){
         _close();
         return ERR_OK;
     }
+#endif // ASYNC_TCP_SSL_ENABLED
     // Everything is fine
     if(_poll_cb)
         _poll_cb(_poll_cb_arg, this);
@@ -696,7 +720,11 @@ void AsyncClient::_dns_found(ip_addr_t *ipaddr){
     Serial.println(ipaddr_ntoa(ipaddr));
 
     if(ipaddr){
+#if ASYNC_TCP_SSL_ENABLED
         connect(IPAddress(ipaddr->u_addr.ip4.addr), _connect_port, _pcb_secure);
+#else
+        connect(IPAddress(ipaddr->u_addr.ip4.addr), _connect_port);
+#endif // ASYNC_TCP_SSL_ENABLED
     } else {
         log_e("dns fail");
         if(_error_cb)
@@ -711,22 +739,29 @@ bool AsyncClient::operator==(const AsyncClient &other) {
     return _pcb == other._pcb;
 }
 
+#if ASYNC_TCP_SSL_ENABLED
 bool AsyncClient::connect(const char* host, uint16_t port, bool secure){
+#else
+bool AsyncClient::connect(const char* host, uint16_t port){
+#endif // ASYNC_TCP_SSL_ENABLED
     ip_addr_t addr;
 
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_s_dns_found, this);
     if(err == ERR_OK) {
-        // @ToDo: do this at one place.
-        _hostname = std::string(host);
+        _hostname = host;
 
+#if ASYNC_TCP_SSL_ENABLED
         return connect(IPAddress(addr.u_addr.ip4.addr), port, secure);
+#else
+        return connect(IPAddress(addr.u_addr.ip4.addr), port);
+#endif // ASYNC_TCP_SSL_ENABLED
     } else if(err == ERR_INPROGRESS) {
-        // @ToDo: do this at one place.
-        _hostname = std::string(host);
-
+        _hostname = host;
         _connect_port = port;
+#if ASYNC_TCP_SSL_ENABLED
         _pcb_secure = secure;
         _handshake_done = !secure;
+#endif // ASYNC_TCP_SSL_ENABLED
         return true;
     }
     log_e("error: %d", err);
@@ -798,6 +833,7 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
     size_t room = space();
     if(!room)
         return 0;
+#if ASYNC_TCP_SSL_ENABLED
     if(_pcb_secure){
         int sent = tcp_ssl_write(_pcb, (uint8_t*)data, size);
         if(sent >= 0){
@@ -809,6 +845,7 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
         _close();
         return 0;
     }
+#endif // ASYNC_TCP_SSL_ENABLED
     size_t will_send = (room < size) ? room : size;
     int8_t err = ERR_OK;
     if(_in_lwip_thread){
@@ -822,9 +859,10 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
 }
 
 bool AsyncClient::send(){
+#if ASYNC_TCP_SSL_ENABLED
     if(_pcb_secure)
         return true;
-
+#endif // ASYNC_TCP_SSL_ENABLED
     int8_t err = ERR_OK;
     if(_in_lwip_thread){
         err = tcp_output(_pcb);
@@ -1071,6 +1109,7 @@ int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
     return ERR_OK;
 }
 
+#if ASYNC_TCP_SSL_ENABLED
 void AsyncClient::_s_data(void *arg, struct tcp_pcb *tcp, uint8_t * data, size_t len){
   AsyncClient *c = reinterpret_cast<AsyncClient*>(arg);
   if(c->_recv_cb)
@@ -1087,6 +1126,7 @@ void AsyncClient::_s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pc
 void AsyncClient::_s_ssl_error(void *arg, struct tcp_pcb *tcp, int8_t err){
   reinterpret_cast<AsyncClient*>(arg)->_ssl_error(err);
 }
+#endif // ASYNC_TCP_SSL_ENABLED
 
 const char * AsyncClient::errorToString(int8_t error){
     switch(error){

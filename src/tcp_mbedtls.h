@@ -1,6 +1,8 @@
 #ifndef LWIPR_MBEDTLS_H
 #define LWIPR_MBEDTLS_H
 
+#if ASYNC_TCP_SSL_ENABLED
+
 #include "mbedtls/platform.h"
 #include "mbedtls/net.h"
 #include "mbedtls/debug.h"
@@ -45,3 +47,4 @@ void tcp_ssl_err(struct tcp_pcb *tcp, tcp_ssl_error_cb_t arg);
 
 
 #endif // LWIPR_MBEDTLS_H
+#endif // ASYNC_TCP_SSL_ENABLED

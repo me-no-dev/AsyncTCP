@@ -1,3 +1,5 @@
+#if ASYNC_TCP_SSL_ENABLED
+
 #include "tcp_mbedtls.h"
 #include "lwip/tcp.h"
 #include "mbedtls/debug.h"
@@ -451,3 +453,5 @@ void tcp_ssl_err(struct tcp_pcb *tcp, tcp_ssl_error_cb_t arg){
     item->on_error = arg;
   }
 }
+
+#endif // ASYNC_TCP_SSL_ENABLED
