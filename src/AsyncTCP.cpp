@@ -716,8 +716,6 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 
 void AsyncClient::_dns_found(ip_addr_t *ipaddr){
     _in_lwip_thread = true;
-    Serial.print("ip: ");
-    Serial.println(ipaddr_ntoa(ipaddr));
 
     if(ipaddr){
 #if ASYNC_TCP_SSL_ENABLED

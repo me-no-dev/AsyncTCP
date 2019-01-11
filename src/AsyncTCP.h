@@ -22,6 +22,7 @@
 #ifndef ASYNCTCP_H_
 #define ASYNCTCP_H_
 
+#include "Arduino.h"
 #include "IPAddress.h"
 #include <functional>
 #include <string>
