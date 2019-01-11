@@ -256,7 +256,7 @@ static void _tcp_error(void * arg, int8_t err) {
 #include "lwip/priv/tcpip_priv.h"
 
 typedef struct {
-    struct tcpip_api_call call;
+    struct tcpip_api_call_data call;
     tcp_pcb * pcb;
     int8_t err;
     union {
@@ -279,7 +279,7 @@ typedef struct {
     };
 } tcp_api_call_t;
 
-static err_t _tcp_output_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_output_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = tcp_output(msg->pcb);
     return msg->err;
@@ -288,11 +288,11 @@ static err_t _tcp_output_api(struct tcpip_api_call *api_call_msg){
 static esp_err_t _tcp_output(tcp_pcb * pcb) {
     tcp_api_call_t msg;
     msg.pcb = pcb;
-    tcpip_api_call(_tcp_output_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_output_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_write_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_write_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = tcp_write(msg->pcb, msg->write.data, msg->write.size, msg->write.apiflags);
     return msg->err;
@@ -304,11 +304,11 @@ static esp_err_t _tcp_write(tcp_pcb * pcb, const char* data, size_t size, uint8_
     msg.write.data = data;
     msg.write.size = size;
     msg.write.apiflags = apiflags;
-    tcpip_api_call(_tcp_write_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_write_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_recved_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_recved_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = 0;
     tcp_recved(msg->pcb, msg->received);
@@ -319,11 +319,11 @@ static esp_err_t _tcp_recved(tcp_pcb * pcb, size_t len) {
     tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.received = len;
-    tcpip_api_call(_tcp_recved_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_recved_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_connect_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_connect_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = tcp_connect(msg->pcb, msg->connect.addr, msg->connect.port, msg->connect.cb);
     return msg->err;
@@ -335,11 +335,11 @@ static esp_err_t _tcp_connect(tcp_pcb * pcb, ip_addr_t * addr, uint16_t port, tc
     msg.connect.addr = addr;
     msg.connect.port = port;
     msg.connect.cb = cb;
-    tcpip_api_call(_tcp_connect_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_connect_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_close_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_close_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = tcp_close(msg->pcb);
     return msg->err;
@@ -349,11 +349,11 @@ static esp_err_t _tcp_close(tcp_pcb * pcb) {
     tcp_api_call_t msg;
     msg.pcb = pcb;
     //ets_printf("close 0x%08x\n", (uint32_t)pcb);
-    tcpip_api_call(_tcp_close_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_close_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_abort_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_abort_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = 0;
     tcp_abort(msg->pcb);
@@ -364,11 +364,11 @@ static esp_err_t _tcp_abort(tcp_pcb * pcb) {
     tcp_api_call_t msg;
     msg.pcb = pcb;
     //ets_printf("abort 0x%08x\n", (uint32_t)pcb);
-    tcpip_api_call(_tcp_abort_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_abort_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_bind_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_bind_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = tcp_bind(msg->pcb, msg->bind.addr, msg->bind.port);
     return msg->err;
@@ -379,11 +379,11 @@ static esp_err_t _tcp_bind(tcp_pcb * pcb, ip_addr_t * addr, uint16_t port) {
     msg.pcb = pcb;
     msg.bind.addr = addr;
     msg.bind.port = port;
-    tcpip_api_call(_tcp_bind_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_bind_api, (struct tcpip_api_call_data*)&msg);
     return msg.err;
 }
 
-static err_t _tcp_listen_api(struct tcpip_api_call *api_call_msg){
+static err_t _tcp_listen_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = 0;
     msg->pcb = tcp_listen_with_backlog(msg->pcb, msg->backlog);
@@ -394,7 +394,7 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
     tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.backlog = backlog?backlog:0xFF;
-    tcpip_api_call(_tcp_listen_api, (struct tcpip_api_call*)&msg);
+    tcpip_api_call(_tcp_listen_api, (struct tcpip_api_call_data*)&msg);
     return msg.pcb;
 }
 #define _tcp_listen(p) _tcp_listen_with_backlog(p, 0xFF);
@@ -581,7 +581,7 @@ int8_t AsyncClient::_close(){
             err = abort();
         }
         _pcb = NULL;
-        _tcp_clear_events(this);
+        // _tcp_clear_events(this);
         if(_discard_cb)
             _discard_cb(_discard_cb_arg, this);
     }
@@ -628,12 +628,13 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
 
 int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
     if(!_pcb || pcb != _pcb){
-        log_e("0x%08x != 0x%08x", (uint32_t)pcb, (uint32_t)_pcb);
-        if(pb){
-            pbuf_free(pb);
-        }
-        return ERR_OK;
-    }
+         log_e("0x%08x != 0x%08x", (uint32_t)pcb, (uint32_t)_pcb);
+         if(pb){
+             pbuf_free(pb);
+         }
+         return ERR_OK;
+     }
+
     _in_lwip_thread = false;
     if(pb == NULL){
         return _close();
@@ -714,7 +715,7 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
     return ERR_OK;
 }
 
-void AsyncClient::_dns_found(ip_addr_t *ipaddr){
+void AsyncClient::_dns_found(struct ip_addr *ipaddr){
     _in_lwip_thread = true;
 
     if(ipaddr){
@@ -1072,12 +1073,20 @@ void AsyncClient::onPoll(AcConnectHandler cb, void* arg){
     _poll_cb_arg = arg;
 }
 
-void AsyncClient::_s_dns_found(const char * name, ip_addr_t * ipaddr, void * arg){
-    reinterpret_cast<AsyncClient*>(arg)->_dns_found(ipaddr);
+void AsyncClient::_s_dns_found(const char * name, struct ip_addr * ipaddr, void * arg){
+    if(arg){
+        reinterpret_cast<AsyncClient*>(arg)->_dns_found(ipaddr);
+    } else {
+        log_e("Bad Arg: 0x%08x", arg);
+    }
 }
 
 int8_t AsyncClient::_s_poll(void * arg, struct tcp_pcb * pcb) {
-    reinterpret_cast<AsyncClient*>(arg)->_poll(pcb);
+    if(arg && pcb){
+        reinterpret_cast<AsyncClient*>(arg)->_poll(pcb);
+    } else {
+        log_e("Bad Args: 0x%08x 0x%08x", arg, pcb);
+    }
     return ERR_OK;
 }
 
@@ -1086,7 +1095,7 @@ int8_t AsyncClient::_s_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, i
         reinterpret_cast<AsyncClient*>(arg)->_recv(pcb, pb, err);
     } else {
         if(pb){
-           pbuf_free(pb);
+        pbuf_free(pb);
         }
         log_e("Bad Args: 0x%08x 0x%08x", arg, pcb);
     }
@@ -1094,16 +1103,28 @@ int8_t AsyncClient::_s_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, i
 }
 
 int8_t AsyncClient::_s_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
-    reinterpret_cast<AsyncClient*>(arg)->_sent(pcb, len);
+    if(arg && pcb){
+        reinterpret_cast<AsyncClient*>(arg)->_sent(pcb, len);
+    } else {
+        log_e("Bad Args: 0x%08x 0x%08x", arg, pcb);
+    }
     return ERR_OK;
 }
 
 void AsyncClient::_s_error(void * arg, int8_t err) {
-    reinterpret_cast<AsyncClient*>(arg)->_error(err);
+    if(arg){
+        reinterpret_cast<AsyncClient*>(arg)->_error(err);
+    } else {
+        log_e("Bad Arg: 0x%08x", arg);
+    }
 }
 
 int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
-    reinterpret_cast<AsyncClient*>(arg)->_connected(pcb, err);
+    if(arg && pcb){
+        reinterpret_cast<AsyncClient*>(arg)->_connected(pcb, err);
+    } else {
+        log_e("Bad Args: 0x%08x 0x%08x", arg, pcb);
+    }
     return ERR_OK;
 }
 
