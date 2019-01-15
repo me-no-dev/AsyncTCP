@@ -188,6 +188,10 @@ class AsyncClient {
     bool _in_lwip_thread;
 };
 
+#if ASYNC_TCP_SSL_ENABLED
+typedef std::function<int(void* arg, const char *filename, uint8_t **buf)> AcSSlFileHandler;
+#endif
+
 class AsyncServer {
   protected:
     uint16_t _port;
@@ -204,6 +208,11 @@ class AsyncServer {
     AsyncServer(uint16_t port);
     ~AsyncServer();
     void onClient(AcConnectHandler cb, void* arg);
+#if ASYNC_TCP_SSL_ENABLED
+    // Dummy, so it compiles with ESP Async WebServer library enabled.
+    void onSslFileRequest(AcSSlFileHandler cb, void* arg) {};
+    void beginSecure(const char *cert, const char *private_key_file, const char *password) {};
+#endif
     void begin();
     void end();
     void setNoDelay(bool nodelay);
