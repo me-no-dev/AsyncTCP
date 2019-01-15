@@ -281,7 +281,11 @@ typedef struct {
 
 static err_t _tcp_output_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
-    msg->err = tcp_output(msg->pcb);
+    if(msg->pcb){
+      msg->err = tcp_output(msg->pcb);
+    } else {
+      msg->err = 0;
+    }
     return msg->err;
 }
 
@@ -1298,9 +1302,9 @@ void AsyncServer::end(){
         tcp_arg(_pcb, NULL);
         tcp_accept(_pcb, NULL);
         if(_in_lwip_thread){
-            tcp_abort(_pcb);
+            tcp_close(_pcb);
         } else {
-            _tcp_abort(_pcb);
+            _tcp_close(_pcb);
         }
         _pcb = NULL;
     }
