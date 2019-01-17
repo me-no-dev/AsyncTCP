@@ -6,8 +6,8 @@
 #include "mbedtls/esp_debug.h"
 #include <string.h>
 
-#define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
-// #define TCP_SSL_DEBUG(...) 
+// #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
+#define TCP_SSL_DEBUG(...) 
 
 static const char pers[] = "esp32-tls";
 
