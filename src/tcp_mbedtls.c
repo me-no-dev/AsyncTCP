@@ -6,8 +6,8 @@
 #include "mbedtls/esp_debug.h"
 #include <string.h>
 
-// #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
-#define TCP_SSL_DEBUG(...) 
+#define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
+// #define TCP_SSL_DEBUG(...) 
 
 static const char pers[] = "esp32-tls";
 
@@ -55,6 +55,7 @@ struct tcp_ssl_pcb {
   int fd;
   mbedtls_ssl_context ssl_ctx;
   mbedtls_ssl_config ssl_conf;
+  mbedtls_x509_crt ca_cert;
   mbedtls_ctr_drbg_context drbg_ctx;
   mbedtls_entropy_context entropy_ctx;
   uint8_t type;
@@ -213,10 +214,8 @@ tcp_ssl_t* tcp_ssl_get(struct tcp_pcb *tcp) {
   return item;
 }
 
-int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
+int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* root_ca, const size_t root_ca_len) {
   tcp_ssl_t* tcp_ssl;
-
-  TCP_SSL_DEBUG("tcp_ssl_new_client\n");
 
   if(tcp == NULL) {
     return -1;
@@ -249,12 +248,26 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname) {
     return -1;
   }
 
-  // @ToDo: allow setting a root CA, for now just not verify.
-  mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_NONE);
-  // mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-  
   int ret = 0;
 
+  if(root_ca != NULL && root_ca_len > 0) {
+    TCP_SSL_DEBUG("setting the root ca.\n");
+
+    mbedtls_x509_crt_init(&tcp_ssl->ca_cert);
+
+    mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+
+    ret = mbedtls_x509_crt_parse(&tcp_ssl->ca_cert, (const unsigned char *)root_ca, root_ca_len);
+    if( ret < 0 ){
+      TCP_SSL_DEBUG(" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
+      return handle_error(ret);
+    }
+
+    mbedtls_ssl_conf_ca_chain(&tcp_ssl->ssl_conf, &tcp_ssl->ca_cert, NULL);
+  } else {
+    mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+  }
+  
   if(hostname != NULL) {
     TCP_SSL_DEBUG("setting the hostname: %s\n", hostname);
     if((ret = mbedtls_ssl_set_hostname(&tcp_ssl->ssl_ctx, hostname)) != 0){

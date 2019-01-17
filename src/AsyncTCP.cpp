@@ -408,7 +408,6 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
 /*
   Async TCP Client
  */
-
 AsyncClient::AsyncClient(tcp_pcb* pcb)
 : _connect_cb(0)
 , _connect_cb_arg(0)
@@ -426,6 +425,8 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 , _timeout_cb_arg(0)
 , _pcb_busy(false)
 #if ASYNC_TCP_SSL_ENABLED
+, _root_ca(NULL)
+, _root_ca_len(0)
 , _pcb_secure(false)
 , _handshake_done(true)
 #endif // ASYNC_TCP_SSL_ENABLED
@@ -496,6 +497,11 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     return true;
 }
 
+void AsyncClient::setRootCa(const char* rootca, const size_t len) {
+    _root_ca = (char*)rootca;
+    _root_ca_len = len;
+}
+
 AsyncClient& AsyncClient::operator=(const AsyncClient& other){
     if (_pcb)
         _close();
@@ -537,7 +543,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
         tcp_poll(_pcb, &_tcp_poll, 1);
 #if ASYNC_TCP_SSL_ENABLED
         if(_pcb_secure){
-            if(tcp_ssl_new_client(_pcb, _hostname.empty() ? NULL : _hostname.c_str()) < 0){
+            if(tcp_ssl_new_client(_pcb, _hostname.empty() ? NULL : _hostname.c_str(), _root_ca, _root_ca_len) < 0){
                 log_e("closing....");
                 return _close();
             }
