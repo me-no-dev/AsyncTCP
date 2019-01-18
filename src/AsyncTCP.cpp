@@ -497,10 +497,12 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     return true;
 }
 
+#if ASYNC_TCP_SSL_ENABLED
 void AsyncClient::setRootCa(const char* rootca, const size_t len) {
     _root_ca = (char*)rootca;
     _root_ca_len = len;
 }
+#endif // ASYNC_TCP_SSL_ENABLED
 
 AsyncClient& AsyncClient::operator=(const AsyncClient& other){
     if (_pcb)

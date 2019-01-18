@@ -356,7 +356,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
     if(tcp_ssl->ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER) {
       TCP_SSL_DEBUG("start handshake: %d\n", tcp_ssl->ssl_ctx.state);
       int ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
-      handle_error(ret);
+      //handle_error(ret);
       if(ret == 0) {
         TCP_SSL_DEBUG("Protocol is %s Ciphersuite is %s\n", mbedtls_ssl_get_version(&tcp_ssl->ssl_ctx), mbedtls_ssl_get_ciphersuite(&tcp_ssl->ssl_ctx));
 
