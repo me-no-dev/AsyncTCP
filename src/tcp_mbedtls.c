@@ -7,7 +7,7 @@
 #include <string.h>
 
 // #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
-#define TCP_SSL_DEBUG(...) 
+#define TCP_SSL_DEBUG(...)
 
 static const char pers[] = "esp32-tls";
 
@@ -139,7 +139,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
   } else {
     tcp_len = len;
   }
-  
+
   if (tcp_len > 2 * tcp_ssl->tcp->mss) {
     tcp_len = 2 * tcp_ssl->tcp->mss;
   }
@@ -243,7 +243,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* ro
     MBEDTLS_SSL_TRANSPORT_STREAM,
     MBEDTLS_SSL_PRESET_DEFAULT)) {
     TCP_SSL_DEBUG("error setting SSL config.\n");
-    
+
     tcp_ssl_free(tcp);
     return -1;
   }
@@ -267,7 +267,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* ro
   } else {
     mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
   }
-  
+
   if(hostname != NULL) {
     TCP_SSL_DEBUG("setting the hostname: %s\n", hostname);
     if((ret = mbedtls_ssl_set_hostname(&tcp_ssl->ssl_ctx, hostname)) != 0){
@@ -282,7 +282,87 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* ro
 
   if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
     tcp_ssl_free(tcp);
-    
+
+    return handle_error(ret);
+  }
+
+  mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, (void*)tcp_ssl, tcp_ssl_send, tcp_ssl_recv, NULL);
+
+  // Start handshake.
+  ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
+  if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+    TCP_SSL_DEBUG("handshake error!\n");
+    return handle_error(ret);
+  }
+
+  return ERR_OK;
+}
+
+// Open an SSL connection using a PSK (pre-shared-key) cipher suite.
+int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, const char* psk_ident, const char* pskey) {
+  tcp_ssl_t* tcp_ssl;
+
+  if(tcp == NULL) return -1;
+  if(tcp_ssl_get(tcp) != NULL) return -1;
+
+  tcp_ssl = tcp_ssl_new(tcp);
+  if(tcp_ssl == NULL) return -1;
+
+  mbedtls_entropy_init(&tcp_ssl->entropy_ctx);
+  mbedtls_ctr_drbg_init(&tcp_ssl->drbg_ctx);
+  mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
+  mbedtls_ssl_config_init(&tcp_ssl->ssl_conf);
+
+  mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func,
+                        &tcp_ssl->entropy_ctx, (const unsigned char*)pers, strlen(pers));
+
+  if(mbedtls_ssl_config_defaults(&tcp_ssl->ssl_conf,
+    MBEDTLS_SSL_IS_CLIENT,
+    MBEDTLS_SSL_TRANSPORT_STREAM,
+    MBEDTLS_SSL_PRESET_DEFAULT)) {
+    TCP_SSL_DEBUG("error setting SSL config.\n");
+
+    tcp_ssl_free(tcp);
+    return -1;
+  }
+
+  int ret = 0;
+
+  TCP_SSL_DEBUG("setting the pre-shared key.\n");
+  // convert PSK from hex string to binary
+  if ((strlen(pskey) & 1) != 0 || strlen(pskey) > 2*MBEDTLS_PSK_MAX_LEN) {
+      TCP_SSL_DEBUG(" failed\n  !  pre-shared key not valid hex or too long\n\n");
+      return -1;
+  }
+  unsigned char psk[MBEDTLS_PSK_MAX_LEN];
+  size_t psk_len = strlen(pskey)/2;
+  for (int j=0; j<strlen(pskey); j+= 2) {
+      char c = pskey[j];
+      if (c >= '0' && c <= '9') c -= '0';
+      else if (c >= 'A' && c <= 'F') c -= 'A' - 10;
+      else if (c >= 'a' && c <= 'f') c -= 'a' - 10;
+      else return -1;
+      psk[j/2] = c<<4;
+      c = pskey[j+1];
+      if (c >= '0' && c <= '9') c -= '0';
+      else if (c >= 'A' && c <= 'F') c -= 'A' - 10;
+      else if (c >= 'a' && c <= 'f') c -= 'a' - 10;
+      else return -1;
+      psk[j/2] |= c;
+  }
+  // set mbedtls config
+  ret = mbedtls_ssl_conf_psk(&tcp_ssl->ssl_conf, psk, psk_len,
+           (const unsigned char *)psk_ident, strlen(psk_ident));
+  if (ret != 0) {
+      TCP_SSL_DEBUG("  failed\n  !  mbedtls_ssl_conf_psk returned -0x%x\n\n", -ret);
+      return handle_error(ret);
+  }
+
+  mbedtls_ssl_conf_rng(&tcp_ssl->ssl_conf, mbedtls_ctr_drbg_random, &tcp_ssl->drbg_ctx);
+
+  if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
+    tcp_ssl_free(tcp);
+
     return handle_error(ret);
   }
 
@@ -302,7 +382,7 @@ int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
   if(tcp == NULL) {
     return -1;
   }
-  
+
   tcp_ssl_t * tcp_ssl = tcp_ssl_get(tcp);
 
   if(tcp_ssl == NULL){
@@ -351,7 +431,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
 
   tcp_ssl->tcp_pbuf = p;
   tcp_ssl->pbuf_offset = 0;
-  
+
   do {
     if(tcp_ssl->ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER) {
       TCP_SSL_DEBUG("start handshake: %d\n", tcp_ssl->ssl_ctx.state);
