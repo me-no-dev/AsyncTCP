@@ -31,6 +31,7 @@ typedef void (* tcp_ssl_error_cb_t)(void *arg, struct tcp_pcb *tcp, int8_t error
 
 uint8_t tcp_ssl_has_client();
 int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* root_ca, const size_t root_ca_len);
+int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, const char* psk_ident, const char* psk);
 int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len);
 int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p);
 int tcp_ssl_handshake_step(struct tcp_pcb *tcp);
