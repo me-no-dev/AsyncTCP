@@ -9,3 +9,10 @@ This library is the base for [ESPAsyncWebServer](https://github.com/me-no-dev/ES
 
 ## AsyncClient and AsyncServer
 The base classes on which everything else is built. They expose all possible scenarios, but are really raw and require more skills to use.
+
+## TLS support
+Support for TLS is added using mbed TLS, for now only the client part is supported. You can enable this by adding the flag ASYNC_TCP_SSL_ENABLED to your build flags (-DASYNC_TCP_SSL_ENABLED). If you'd like to set a root certificate you can use the setRootCa function on AsyncClient. Feel free to add support for the server side as well :-)
+
+In addition to the regular certificate based cipher suites there is also support for Pre-Shared Key
+cipher suites. Use `setPsk` to define the PSK identifier and PSK itself. The PSK needs to be
+provided in the form of a hex string (and easy way to generate a PSK is to use md5sum).
