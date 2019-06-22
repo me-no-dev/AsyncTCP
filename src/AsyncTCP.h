@@ -81,6 +81,8 @@ class AsyncClient {
     void _error(int8_t err);
     int8_t _poll(tcp_pcb* pcb);
     int8_t _sent(tcp_pcb* pcb, uint16_t len);
+    int8_t _fin(tcp_pcb* pcb, int8_t err);
+    int8_t _lwip_fin(tcp_pcb* pcb, int8_t err);
     void _dns_found(struct ip_addr *ipaddr);
 
 
@@ -158,12 +160,12 @@ class AsyncClient {
 
     static int8_t _s_poll(void *arg, struct tcp_pcb *tpcb);
     static int8_t _s_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *pb, int8_t err);
+    static int8_t _s_fin(void *arg, struct tcp_pcb *tpcb, int8_t err);
+    static int8_t _s_lwip_fin(void *arg, struct tcp_pcb *tpcb, int8_t err);
     static void _s_error(void *arg, int8_t err);
     static int8_t _s_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len);
     static int8_t _s_connected(void* arg, void* tpcb, int8_t err);
     static void _s_dns_found(const char *name, struct ip_addr *ipaddr, void *arg);
-
-    bool _in_lwip_thread;
 };
 
 class AsyncServer {
@@ -171,7 +173,6 @@ class AsyncServer {
     uint16_t _port;
     IPAddress _addr;
     bool _noDelay;
-    bool _in_lwip_thread;
     tcp_pcb* _pcb;
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;
@@ -189,8 +190,10 @@ class AsyncServer {
     uint8_t status();
 
     static int8_t _s_accept(void *arg, tcp_pcb* newpcb, int8_t err);
+    static int8_t _s_accepted(void *arg, AsyncClient* client);
   protected:
     int8_t _accept(tcp_pcb* newpcb, int8_t err);
+    int8_t _accepted(AsyncClient* client);
 };
 
 
