@@ -68,7 +68,6 @@ class AsyncClient {
 
     bool _pcb_busy;
     uint32_t _pcb_sent_at;
-    bool _close_pcb;
     bool _ack_pcb;
     uint32_t _rx_ack_len;
     uint32_t _rx_last_packet;
