@@ -23,11 +23,20 @@
 #define ASYNCTCP_H_
 
 #include "IPAddress.h"
+#include "sdkconfig.h"
 #include <functional>
 extern "C" {
     #include "freertos/semphr.h"
     #include "lwip/pbuf.h"
 }
+
+#ifndef CONFIG_ASYNC_TCP_RUNNING_CORE
+#define CONFIG_ASYNC_TCP_RUNNING_CORE -1 //any available core
+#endif
+
+#ifndef CONFIG_ASYNC_TCP_USE_WDT
+#define CONFIG_ASYNC_TCP_USE_WDT 0 //if enabled, adds between 33us and 200us per event
+#endif
 
 class AsyncClient;
 

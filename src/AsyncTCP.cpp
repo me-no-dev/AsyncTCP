@@ -28,12 +28,7 @@ extern "C"{
 #include "lwip/inet.h"
 #include "lwip/dns.h"
 }
-
-#if CONFIG_FREERTOS_UNICORE
-#define ASYNCTCP_RUNNING_CORE 0
-#else
-#define ASYNCTCP_RUNNING_CORE 1
-#endif
+#include "esp_task_wdt.h"
 
 /*
  * TCP/IP Event Task
@@ -146,15 +141,19 @@ static void _handle_async_event(lwip_event_packet_t * e){
     if(e->event == LWIP_TCP_CLEAR){
         _remove_events_with_arg(e->arg);
     } else if(e->event == LWIP_TCP_RECV){
+        //ets_printf("-R: 0x%08x\n", e->recv.pcb);
         //ets_printf("R: 0x%08x 0x%08x %d\n", e->arg, e->recv.pcb, e->recv.err);
         AsyncClient::_s_recv(e->arg, e->recv.pcb, e->recv.pb, e->recv.err);
     } else if(e->event == LWIP_TCP_FIN){
+        //ets_printf("-F: 0x%08x\n", e->fin.pcb);
         //ets_printf("F: 0x%08x 0x%08x %d\n", e->arg, e->fin.pcb, e->fin.err);
         AsyncClient::_s_fin(e->arg, e->fin.pcb, e->fin.err);
     } else if(e->event == LWIP_TCP_SENT){
+        //ets_printf("-S: 0x%08x\n", e->sent.pcb);
         //ets_printf("S: 0x%08x 0x%08x\n", e->arg, e->sent.pcb);
         AsyncClient::_s_sent(e->arg, e->sent.pcb, e->sent.len);
     } else if(e->event == LWIP_TCP_POLL){
+        //ets_printf("-P: 0x%08x\n", e->poll.pcb);
         //ets_printf("P: 0x%08x 0x%08x\n", e->arg, e->poll.pcb);
         AsyncClient::_s_poll(e->arg, e->poll.pcb);
     } else if(e->event == LWIP_TCP_ERROR){
@@ -174,7 +173,17 @@ static void _async_service_task(void *pvParameters){
     lwip_event_packet_t * packet = NULL;
     for (;;) {
         if(_get_async_event(&packet)){
+#if CONFIG_ASYNC_TCP_USE_WDT
+            if(esp_task_wdt_add(NULL) != ESP_OK){
+                log_e("Failed to add async task to WDT");
+            }
+#endif
             _handle_async_event(packet);
+#if CONFIG_ASYNC_TCP_USE_WDT
+            if(esp_task_wdt_delete(NULL) != ESP_OK){
+                log_e("Failed to remove loop task from WDT");
+            }
+#endif
         }
     }
     vTaskDelete(NULL);
@@ -193,7 +202,7 @@ static bool _start_async_task(){
         return false;
     }
     if(!_async_service_task_handle){
-        xTaskCreatePinnedToCore(_async_service_task, "async_tcp", 8192 * 2, NULL, 3, &_async_service_task_handle, ASYNCTCP_RUNNING_CORE);
+        xTaskCreateUniversal(_async_service_task, "async_tcp", 8192 * 2, NULL, 3, &_async_service_task_handle, CONFIG_ASYNC_TCP_RUNNING_CORE);
         if(!_async_service_task_handle){
             return false;
         }
@@ -216,7 +225,7 @@ static int8_t _tcp_clear_events(void * arg) {
 }
 
 static int8_t _tcp_connected(void * arg, tcp_pcb * pcb, int8_t err) {
-    //ets_printf("C: 0x%08x\n", pcb);
+    //ets_printf("+C: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_CONNECTED;
     e->arg = arg;
@@ -229,7 +238,7 @@ static int8_t _tcp_connected(void * arg, tcp_pcb * pcb, int8_t err) {
 }
 
 static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
-    //ets_printf("P: 0x%08x\n", pcb);
+    //ets_printf("+P: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_POLL;
     e->arg = arg;
@@ -244,13 +253,13 @@ static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->arg = arg;
     if(pb){
-        //ets_printf("R: 0x%08x\n", pcb);
+        //ets_printf("+R: 0x%08x\n", pcb);
         e->event = LWIP_TCP_RECV;
         e->recv.pcb = pcb;
         e->recv.pb = pb;
         e->recv.err = err;
     } else {
-        //ets_printf("D: 0x%08x\n", pcb);
+        //ets_printf("+F: 0x%08x\n", pcb);
         e->event = LWIP_TCP_FIN;
         e->fin.pcb = pcb;
         e->fin.err = err;
@@ -264,7 +273,7 @@ static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_
 }
 
 static int8_t _tcp_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
-    //ets_printf("S: 0x%08x\n", pcb);
+    //ets_printf("+S: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_SENT;
     e->arg = arg;
@@ -277,7 +286,7 @@ static int8_t _tcp_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
 }
 
 static void _tcp_error(void * arg, int8_t err) {
-    //ets_printf("E: 0x%08x\n", arg);
+    //ets_printf("+E: 0x%08x\n", arg);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_ERROR;
     e->arg = arg;
@@ -1174,7 +1183,7 @@ int8_t AsyncServer::_s_accepted(void *arg, AsyncClient* client){
 
 //runs on LwIP thread
 int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
-    //ets_printf("A: 0x%08x\n", pcb);
+    //ets_printf("+A: 0x%08x\n", pcb);
     if(_connect_cb){
         if (_noDelay) {
             tcp_nagle_disable(pcb);
