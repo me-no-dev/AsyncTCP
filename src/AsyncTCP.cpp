@@ -420,7 +420,7 @@ static esp_err_t _tcp_recved(tcp_pcb * pcb, size_t len, AsyncClient * client) {
 static err_t _tcp_close_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = 0;
-    if(msg->client && msg->client->pcb()){
+    if(!msg->client || msg->client->pcb()){
         msg->err = tcp_close(msg->pcb);
     }
     return msg->err;
@@ -441,7 +441,7 @@ static esp_err_t _tcp_close(tcp_pcb * pcb, AsyncClient * client) {
 static err_t _tcp_abort_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = 0;
-    if(msg->client && msg->client->pcb()){
+    if(!msg->client || msg->client->pcb()){
         tcp_abort(msg->pcb);
     }
     return msg->err;
