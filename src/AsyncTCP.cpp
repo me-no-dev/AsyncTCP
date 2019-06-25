@@ -710,16 +710,16 @@ bool AsyncClient::connect(const char* host, uint16_t port){
     ip_addr_t addr;
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
     if(err == ERR_OK) {
-        _hostname = host;
 #if ASYNC_TCP_SSL_ENABLED
+        _hostname = host;
         return connect(IPAddress(addr.u_addr.ip4.addr), port, secure);
 #else
         return connect(IPAddress(addr.u_addr.ip4.addr), port);
 #endif // ASYNC_TCP_SSL_ENABLED
     } else if(err == ERR_INPROGRESS) {
-        _hostname = host;
         _connect_port = port;
 #if ASYNC_TCP_SSL_ENABLED
+        _hostname = host;
         _pcb_secure = secure;
         _handshake_done = !secure;
 #endif // ASYNC_TCP_SSL_ENABLED
