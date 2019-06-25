@@ -451,7 +451,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
         break;
       }
     } else {
-      read_bytes = mbedtls_ssl_read(&tcp_ssl->ssl_ctx, &read_buf, read_buf_size);
+      read_bytes = mbedtls_ssl_read(&tcp_ssl->ssl_ctx, (unsigned char *)&read_buf, read_buf_size);
       TCP_SSL_DEBUG("tcp_ssl_read: read_bytes: %d, total_bytes: %d, tot_len: %d, pbuf_offset: %d\r\n", read_bytes, total_bytes, p->tot_len, tcp_ssl->pbuf_offset);
       if(read_bytes < 0) { // SSL_OK
         if(read_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
