@@ -27,6 +27,7 @@ extern "C"{
 #include "lwip/tcp.h"
 #include "lwip/inet.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 }
 #include "esp_task_wdt.h"
 
@@ -1089,22 +1090,22 @@ bool AsyncClient::canSend(){
 
 const char * AsyncClient::errorToString(int8_t error){
     switch(error){
-        case 0: return "OK";
-        case -1: return "Out of memory error";
-        case -2: return "Buffer error";
-        case -3: return "Timeout";
-        case -4: return "Routing problem";
-        case -5: return "Operation in progress";
-        case -6: return "Illegal value";
-        case -7: return "Operation would block";
-        case -8: return "Connection aborted";
-        case -9: return "Connection reset";
-        case -10: return "Connection closed";
-        case -11: return "Not connected";
-        case -12: return "Illegal argument";
-        case -13: return "Address in use";
-        case -14: return "Low-level netif error";
-        case -15: return "Already connected";
+        case ERR_OK: return "OK";
+        case ERR_MEM: return "Out of memory error";
+        case ERR_BUF: return "Buffer error";
+        case ERR_TIMEOUT: return "Timeout";
+        case ERR_RTE: return "Routing problem";
+        case ERR_INPROGRESS: return "Operation in progress";
+        case ERR_VAL: return "Illegal value";
+        case ERR_WOULDBLOCK: return "Operation would block";
+        case ERR_USE: return "Address in use";
+        case ERR_ALREADY: return "Already connected";
+        case ERR_CONN: return "Not connected";
+        case ERR_IF: return "Low-level netif error";
+        case ERR_ABRT: return "Connection aborted";
+        case ERR_RST: return "Connection reset";
+        case ERR_CLSD: return "Connection closed";
+        case ERR_ARG: return "Illegal argument";
         case -55: return "DNS failed";
         default: return "UNKNOWN";
     }
