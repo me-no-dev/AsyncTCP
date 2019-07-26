@@ -1038,7 +1038,7 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
         return ERR_OK;
     }
 #if ASYNC_TCP_SSL_ENABLED
-    if(_pcb_secure && !_handshake_done && (now - _rx_last_packet) >= 5000){
+    if(_pcb_secure && !_handshake_done && (now - _rx_last_packet) >= SSL_HANDSHAKE_TIMEOUT){
         log_w("ssl handshake timeout %d", pcb->state);
         _close();
         return ERR_OK;
