@@ -689,7 +689,7 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
 
 #if ASYNC_TCP_SSL_ENABLED
     _pcb_secure = secure;
-        _handshake_done = !secure;
+    _handshake_done = !secure;
 #endif // ASYNC_TCP_SSL_ENABLED
 
     tcp_arg(pcb, this);
