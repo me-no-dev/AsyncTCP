@@ -161,6 +161,9 @@ static void _handle_async_event(lwip_event_packet_t * e){
     } else if(e->event == LWIP_TCP_ACCEPT){
         //ets_printf("A: 0x%08x 0x%08x\n", e->arg, e->accept.client);
         AsyncServer::_s_accepted(e->arg, e->accept.client);
+    } else if(e->event == LWIP_TCP_DNS){
+        //ets_printf("D: 0x%08x %s = %s\n", e->arg, e->dns.name, ipaddr_ntoa(&e->dns.addr));
+        AsyncClient::_s_dns_found(e->dns.name, &e->dns.addr, e->arg);
     }
     free((void*)(e));
 }
@@ -708,6 +711,13 @@ bool AsyncClient::connect(const char* host, uint16_t port, bool secure){
 bool AsyncClient::connect(const char* host, uint16_t port){
 #endif // ASYNC_TCP_SSL_ENABLED
     ip_addr_t addr;
+    
+    if(!_start_async_task()){
+      Serial.println("failed to start task");
+      log_e("failed to start task");
+      return false;
+    }
+    
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
     if(err == ERR_OK) {
 #if ASYNC_TCP_SSL_ENABLED
