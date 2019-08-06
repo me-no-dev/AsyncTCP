@@ -1246,7 +1246,9 @@ void AsyncServer::end(){
     if(_pcb){
         tcp_arg(_pcb, NULL);
         tcp_accept(_pcb, NULL);
-        _tcp_abort(_pcb, NULL);
+        if(tcp_close(_pcb) != ERR_OK){
+            _tcp_abort(_pcb, NULL);
+        }
         _pcb = NULL;
     }
 }
