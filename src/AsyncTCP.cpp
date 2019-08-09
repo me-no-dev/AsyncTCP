@@ -524,7 +524,23 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
     return msg.pcb;
 }
 
+#if ASYNC_TCP_SSL_ENABLED
+extern "C" {
 
+    esp_err_t _tcp_output4ssl(tcp_pcb * pcb, void* client) {
+        return _tcp_output(pcb, (AsyncClient *)client);
+    }
+
+    esp_err_t _tcp_write4ssl(tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client) {
+        return _tcp_write(pcb, data, size, apiflags, (AsyncClient *)client);
+    }
+
+    esp_err_t _tcp_recved4ssl(tcp_pcb * pcb, size_t len, void* client) {
+        return _tcp_recved(pcb, len, (AsyncClient *)client);
+    }
+
+}
+#endif
 
 /*
   Async TCP Client

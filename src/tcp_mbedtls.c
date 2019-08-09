@@ -6,6 +6,11 @@
 #include "mbedtls/esp_debug.h"
 #include <string.h>
 
+// stubs to call LwIP's tcp functions on the LwIP thread itself, implemented in AsyncTCP.cpp
+extern esp_err_t _tcp_output4ssl(struct tcp_pcb * pcb, void* client);
+extern esp_err_t _tcp_write4ssl(struct tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client);
+extern esp_err_t _tcp_recved4ssl(struct tcp_pcb * pcb, size_t len, void* client);
+
 // #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
 #define TCP_SSL_DEBUG(...)
 
@@ -144,7 +149,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
     tcp_len = 2 * tcp_ssl->tcp->mss;
   }
 
-  err = _tcp_write(tcp_ssl->tcp, buf, tcp_len, TCP_WRITE_FLAG_COPY);
+  err = _tcp_write4ssl(tcp_ssl->tcp, (char *)buf, tcp_len, TCP_WRITE_FLAG_COPY, tcp_ssl->arg);
   if(err < ERR_OK) {
     if (err == ERR_MEM) {
       TCP_SSL_DEBUG("ax_port_write: No memory %d (%d)\n", tcp_len, len);
@@ -154,7 +159,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
     return err;
   } else if (err == ERR_OK) {
     //TCP_SSL_DEBUG("ax_port_write: tcp_output: %d / %d\n", tcp_len, len);
-    err = _tcp_output(tcp_ssl->tcp);
+    err = _tcp_output4ssl(tcp_ssl->tcp, tcp_ssl->arg);
     if(err != ERR_OK) {
       TCP_SSL_DEBUG("ax_port_write: tcp_output err: %d\n", err);
       return err;
@@ -470,7 +475,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
     }
   } while (p->tot_len - tcp_ssl->pbuf_offset > 0 || read_bytes > 0);
 
-  _tcp_recved(tcp, p->tot_len);
+  _tcp_recved4ssl(tcp, p->tot_len, tcp_ssl->arg);
   tcp_ssl->tcp_pbuf = NULL;
   pbuf_free(p);
 
