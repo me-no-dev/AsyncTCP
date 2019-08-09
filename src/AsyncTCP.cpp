@@ -527,6 +527,8 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
 
 #if ASYNC_TCP_SSL_ENABLED
 extern "C" {
+    // The following API stubs are for use in tcp_mbedtls.c
+    // They are callable from C and take a void* instead of an AsyncClient*.
 
     esp_err_t _tcp_output4ssl(tcp_pcb * pcb, void* client) {
         return _tcp_output(pcb, (AsyncClient *)client);
