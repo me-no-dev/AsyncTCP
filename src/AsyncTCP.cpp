@@ -33,6 +33,11 @@ extern "C"{
 
 /*
  * TCP/IP Event Task
+ *
+ * This task processes events that correspond to the various callbacks made by LwIP. The callbacks
+ * are handled by _tcp_* functions, which package the info into events, which are processed by this
+ * task. The purpose of this scheme is ??? (to be able to block or spend arbitrary time in the event
+ * handlers without thereby blocking LwIP???).
  * */
 
 typedef enum {
@@ -211,6 +216,9 @@ static bool _start_async_task(){
 
 /*
  * LwIP Callbacks
+ *
+ * The following "_tcp_*" functions are called by LwIP on its thread. They all do nothing but
+ * package the callback info into an event, which is queued for the async event task (see above).
  * */
 
 static int8_t _tcp_clear_events(void * arg) {
@@ -320,6 +328,13 @@ static int8_t _tcp_accept(void * arg, AsyncClient * client) {
 
 /*
  * TCP/IP API Calls
+ *
+ * The following functions provide stubs to call into LwIP's TCP api functions on the LwIP thread
+ * itself. This ensures there are no race conditions between the application and LwIP.
+ * The way it works is that the `_tcp_xxx` functions synchronously call the corresponding
+ * `_tcp_xxx_api` functions on the LwIP thread using a `tcp_api_call` mechanism provided by LwIP.
+ * The `_tcp_xxx_api` function then finally calls the actual `tcp_xxx` function in LwIP and returns
+ * the result.
  * */
 
 #include "lwip/priv/tcpip_priv.h"
@@ -711,13 +726,13 @@ bool AsyncClient::connect(const char* host, uint16_t port, bool secure){
 bool AsyncClient::connect(const char* host, uint16_t port){
 #endif // ASYNC_TCP_SSL_ENABLED
     ip_addr_t addr;
-    
+
     if(!_start_async_task()){
       Serial.println("failed to start task");
       log_e("failed to start task");
       return false;
     }
-    
+
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
     if(err == ERR_OK) {
 #if ASYNC_TCP_SSL_ENABLED
@@ -995,7 +1010,7 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
                 }
                 return ERR_BUF; // for lack of a better error value
             }
-            return ERR_OK;
+            continue;
         }
 #endif // ASYNC_TCP_SSL_ENABLED
 

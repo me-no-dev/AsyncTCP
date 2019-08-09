@@ -144,7 +144,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
     tcp_len = 2 * tcp_ssl->tcp->mss;
   }
 
-  err = tcp_write(tcp_ssl->tcp, buf, tcp_len, TCP_WRITE_FLAG_COPY);
+  err = _tcp_write(tcp_ssl->tcp, buf, tcp_len, TCP_WRITE_FLAG_COPY);
   if(err < ERR_OK) {
     if (err == ERR_MEM) {
       TCP_SSL_DEBUG("ax_port_write: No memory %d (%d)\n", tcp_len, len);
@@ -154,7 +154,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
     return err;
   } else if (err == ERR_OK) {
     //TCP_SSL_DEBUG("ax_port_write: tcp_output: %d / %d\n", tcp_len, len);
-    err = tcp_output(tcp_ssl->tcp);
+    err = _tcp_output(tcp_ssl->tcp);
     if(err != ERR_OK) {
       TCP_SSL_DEBUG("ax_port_write: tcp_output err: %d\n", err);
       return err;
@@ -470,7 +470,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
     }
   } while (p->tot_len - tcp_ssl->pbuf_offset > 0 || read_bytes > 0);
 
-  tcp_recved(tcp, p->tot_len);
+  _tcp_recved(tcp, p->tot_len);
   tcp_ssl->tcp_pbuf = NULL;
   pbuf_free(p);
 
