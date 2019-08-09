@@ -9,10 +9,12 @@
 // stubs to call LwIP's tcp functions on the LwIP thread itself, implemented in AsyncTCP.cpp
 extern esp_err_t _tcp_output4ssl(struct tcp_pcb * pcb, void* client);
 extern esp_err_t _tcp_write4ssl(struct tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client);
-extern esp_err_t _tcp_recved4ssl(struct tcp_pcb * pcb, size_t len, void* client);
 
-// #define TCP_SSL_DEBUG(...) ets_printf(__VA_ARGS__)
+#if 0
+#define TCP_SSL_DEBUG(...) do { ets_printf("T %s- ", pcTaskGetTaskName(xTaskGetCurrentTaskHandle())); ets_printf(__VA_ARGS__); } while(0)
+#else
 #define TCP_SSL_DEBUG(...)
+#endif
 
 static const char pers[] = "esp32-tls";
 
@@ -80,10 +82,11 @@ typedef struct tcp_ssl_pcb tcp_ssl_t;
 static tcp_ssl_t * tcp_ssl_array = NULL;
 static int tcp_ssl_next_fd = 0;
 
+// tcp_ssl_recv attempts to read up to len bytes into buf from data already received.
+// It is called by mbedtls.
 int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
+  TCP_SSL_DEBUG("tcp_ssl_recv: ctx: 0x%X, buf: 0x%X, len: %d\n", ctx, buf, len);
   tcp_ssl_t *tcp_ssl = (tcp_ssl_t*)ctx;
-  uint8_t *read_buf = NULL;
-  uint8_t *pread_buf = NULL;
   u16_t recv_len = 0;
 
   if(tcp_ssl->tcp_pbuf == NULL || tcp_ssl->tcp_pbuf->tot_len == 0) {
@@ -91,33 +94,19 @@ int tcp_ssl_recv(void *ctx, unsigned char *buf, size_t len) {
     return MBEDTLS_ERR_SSL_WANT_READ;
   }
 
-  read_buf =(uint8_t*)calloc(tcp_ssl->tcp_pbuf->len + 1, sizeof(uint8_t));
-  pread_buf = read_buf;
-  if (pread_buf != NULL){
-    recv_len = pbuf_copy_partial(tcp_ssl->tcp_pbuf, read_buf, len, tcp_ssl->pbuf_offset);
-    TCP_SSL_DEBUG("tcp_ssl_recv: len: %d, recv_len: %d, pbuf_offset: %d, tcp_pbuf len: %d.\n", len, recv_len, tcp_ssl->pbuf_offset, tcp_ssl->tcp_pbuf->len);
-    tcp_ssl->pbuf_offset += recv_len;
-  }
-
-  // Note: why copy again?
-  if (recv_len != 0) {
-    memcpy(buf, read_buf, recv_len);
-  }
-
-  if(len < recv_len) {
-    TCP_SSL_DEBUG("tcp_ssl_recv: got %d bytes more than expected\n", recv_len - len);
-  }
-
-  free(pread_buf);
-  pread_buf = NULL;
+  recv_len = pbuf_copy_partial(tcp_ssl->tcp_pbuf, buf, len, tcp_ssl->pbuf_offset);
+  TCP_SSL_DEBUG("tcp_ssl_recv: len: %d, recv_len: %d, pbuf_offset: %d, tcp_pbuf len: %d.\n",
+      len, recv_len, tcp_ssl->pbuf_offset, tcp_ssl->tcp_pbuf->len);
+  tcp_ssl->pbuf_offset += recv_len;
 
   if(recv_len == 0) {
     return MBEDTLS_ERR_SSL_WANT_READ;
   }
-
   return recv_len;
 }
 
+// tcp_ssl_send attempts to send len bytes from buf.
+// It is called by mbedtls.
 int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
   TCP_SSL_DEBUG("tcp_ssl_send: ctx: 0x%X, buf: 0x%X, len: %d\n", ctx, buf, len);
 
@@ -138,7 +127,7 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
   if (tcp_sndbuf(tcp_ssl->tcp) < len) {
     tcp_len = tcp_sndbuf(tcp_ssl->tcp);
     if(tcp_len == 0) {
-      TCP_SSL_DEBUG("ax_port_write: tcp_sndbuf is zero: %d\n", len);
+      TCP_SSL_DEBUG("tcp_ssl_send: tcp_sndbuf is zero: %d\n", len);
       return ERR_MEM;
     }
   } else {
@@ -149,19 +138,20 @@ int tcp_ssl_send(void *ctx, const unsigned char *buf, size_t len) {
     tcp_len = 2 * tcp_ssl->tcp->mss;
   }
 
+  TCP_SSL_DEBUG("tcp_ssl_send: tcp_write(%x, %x, %d, %x)\n", tcp_ssl->tcp, (char *)buf, tcp_len, tcp_ssl->arg);
   err = _tcp_write4ssl(tcp_ssl->tcp, (char *)buf, tcp_len, TCP_WRITE_FLAG_COPY, tcp_ssl->arg);
   if(err < ERR_OK) {
     if (err == ERR_MEM) {
-      TCP_SSL_DEBUG("ax_port_write: No memory %d (%d)\n", tcp_len, len);
+      TCP_SSL_DEBUG("tcp_ssl_send: No memory %d (%d)\n", tcp_len, len);
       return err;
     }
-    TCP_SSL_DEBUG("ax_port_write: tcp_write error: %d\n", err);
+    TCP_SSL_DEBUG("tcp_ssl_send: tcp_write error: %d\n", err);
     return err;
   } else if (err == ERR_OK) {
-    //TCP_SSL_DEBUG("ax_port_write: tcp_output: %d / %d\n", tcp_len, len);
+    TCP_SSL_DEBUG("tcp_ssl_send: tcp_output: %d / %d\n", tcp_len, len);
     err = _tcp_output4ssl(tcp_ssl->tcp, tcp_ssl->arg);
     if(err != ERR_OK) {
-      TCP_SSL_DEBUG("ax_port_write: tcp_output err: %d\n", err);
+      TCP_SSL_DEBUG("tcp_ssl_send: tcp_output err: %d\n", err);
       return err;
     }
   }
@@ -175,7 +165,7 @@ uint8_t tcp_ssl_has_client() {
   return _tcp_ssl_has_client;
 }
 
-tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp) {
+tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp, void* arg) {
 
   if(tcp_ssl_next_fd < 0){
     tcp_ssl_next_fd = 0;//overflow
@@ -188,7 +178,7 @@ tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp) {
   }
 
   new_item->tcp = tcp;
-  new_item->arg = NULL;
+  new_item->arg = arg;
   new_item->on_data = NULL;
   new_item->on_handshake = NULL;
   new_item->on_error = NULL;
@@ -219,7 +209,7 @@ tcp_ssl_t* tcp_ssl_get(struct tcp_pcb *tcp) {
   return item;
 }
 
-int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* root_ca, const size_t root_ca_len) {
+int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, const char* root_ca, const size_t root_ca_len) {
   tcp_ssl_t* tcp_ssl;
 
   if(tcp == NULL) {
@@ -230,7 +220,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* ro
     return -1;
   }
 
-  tcp_ssl = tcp_ssl_new(tcp);
+  tcp_ssl = tcp_ssl_new(tcp, arg);
   if(tcp_ssl == NULL){
     return -1;
   }
@@ -304,13 +294,13 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, const char* hostname, const char* ro
 }
 
 // Open an SSL connection using a PSK (pre-shared-key) cipher suite.
-int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, const char* psk_ident, const char* pskey) {
+int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident, const char* pskey) {
   tcp_ssl_t* tcp_ssl;
 
   if(tcp == NULL) return -1;
   if(tcp_ssl_get(tcp) != NULL) return -1;
 
-  tcp_ssl = tcp_ssl_new(tcp);
+  tcp_ssl = tcp_ssl_new(tcp, arg);
   if(tcp_ssl == NULL) return -1;
 
   mbedtls_entropy_init(&tcp_ssl->entropy_ctx);
@@ -330,6 +320,8 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, const char* psk_ident, const cha
     tcp_ssl_free(tcp);
     return -1;
   }
+
+  //mbedtls_esp_enable_debug_log(&tcp_ssl->ssl_conf, 4); // 4=verbose
 
   int ret = 0;
 
@@ -383,7 +375,10 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, const char* psk_ident, const cha
   return ERR_OK;
 }
 
+// tcp_ssl_write writes len bytes from data into the TLS connection. I.e., data is plaintext, gets
+// encrypted, and then transmitted on the TCP connection.
 int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
+  TCP_SSL_DEBUG("tcp_ssl_write(%x, %x, len=%d)\n", tcp, data, len);
   if(tcp == NULL) {
     return -1;
   }
@@ -412,7 +407,11 @@ int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len) {
   return tcp_ssl->last_wr;
 }
 
+// tcp_ssl_read is a callback that reads from the TLS connection, i.e., it calls mbedtls, which then
+// tries to read from the TCP connection and decrypts it, tcp_ssl_read then calls the application's
+// onData callback with the decrypted data.
 int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
+  TCP_SSL_DEBUG("tcp_ssl_read(%x, %x)\n", tcp, p);
   if(tcp == NULL) {
     return -1;
   }
@@ -449,6 +448,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
           tcp_ssl->on_handshake(tcp_ssl->arg, tcp_ssl->tcp, tcp_ssl);
       } else if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
         TCP_SSL_DEBUG("handshake error: %d\n", ret);
+        handle_error(ret);
 
         if(tcp_ssl->on_error)
           tcp_ssl->on_error(tcp_ssl->arg, tcp_ssl->tcp, ret);
@@ -475,14 +475,13 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
     }
   } while (p->tot_len - tcp_ssl->pbuf_offset > 0 || read_bytes > 0);
 
-  _tcp_recved4ssl(tcp, p->tot_len, tcp_ssl->arg);
   tcp_ssl->tcp_pbuf = NULL;
-  pbuf_free(p);
 
-  return total_bytes;
+  return total_bytes >= 0 ? 0 : total_bytes; // return error code
 }
 
 int tcp_ssl_free(struct tcp_pcb *tcp) {
+  TCP_SSL_DEBUG("tcp_ssl_free(%x)\n", tcp);
   if(tcp == NULL) {
     return -1;
   }

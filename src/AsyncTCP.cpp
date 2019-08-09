@@ -143,6 +143,7 @@ static bool _remove_events_with_arg(void * arg){
 }
 
 static void _handle_async_event(lwip_event_packet_t * e){
+    //ets_printf("T %s- ", pcTaskGetTaskName(xTaskGetCurrentTaskHandle()));
     if(e->event == LWIP_TCP_CLEAR){
         _remove_events_with_arg(e->arg);
     } else if(e->event == LWIP_TCP_RECV){
@@ -535,10 +536,6 @@ extern "C" {
         return _tcp_write(pcb, data, size, apiflags, (AsyncClient *)client);
     }
 
-    esp_err_t _tcp_recved4ssl(tcp_pcb * pcb, size_t len, void* client) {
-        return _tcp_recved(pcb, len, (AsyncClient *)client);
-    }
-
 }
 #endif
 
@@ -914,17 +911,16 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
         if(_pcb_secure){
             bool err = false;
             if(_root_ca) {
-                err = tcp_ssl_new_client(_pcb, _hostname.empty() ? NULL : _hostname.c_str(),
+                err = tcp_ssl_new_client(_pcb, this, _hostname.empty() ? NULL : _hostname.c_str(),
                         _root_ca, _root_ca_len) < 0;
             } else {
-                err = tcp_ssl_new_psk_client(_pcb, _psk_ident, _psk) < 0;
+                err = tcp_ssl_new_psk_client(_pcb, this, _psk_ident, _psk) < 0;
             }
             if (err) {
                 log_e("closing....");
                 return _close();
             }
 
-            tcp_ssl_arg(_pcb, this);
             tcp_ssl_data(_pcb, &_s_data);
             tcp_ssl_handshake(_pcb, &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
@@ -1014,40 +1010,46 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
 int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
     while(pb != NULL) {
         _rx_last_packet = millis();
+        pbuf *nxt = pb->next;
+        pb->next = NULL;
 
 #if ASYNC_TCP_SSL_ENABLED
         if(_pcb_secure){
             // log_i("_recv: %d\n", pb->tot_len);
-            int read_bytes = tcp_ssl_read(pcb, pb);
-            if(read_bytes < 0){
-                if (read_bytes != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-                    log_e("_recv err: %d\n", read_bytes);
+            int err = tcp_ssl_read(pcb, pb);
+            // tcp_ssl_read always processes the full pbuf, so ack all of it
+            _tcp_recved(pcb, pb->len, this);
+            pbuf_free(pb);
+            // handle errors
+            if(err < 0){
+                if (err != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+                    log_e("_recv err: %d\n", err);
                     _close();
                 }
                 return ERR_BUF; // for lack of a better error value
             }
-            continue;
-        }
-#endif // ASYNC_TCP_SSL_ENABLED
 
-        //we should not ack before we assimilate the data
-        _ack_pcb = true;
-        pbuf *b = pb;
-        pb = b->next;
-        b->next = NULL;
-        if(_pb_cb){
-            _pb_cb(_pb_cb_arg, this, b);
-        } else {
-            if(_recv_cb) {
-                _recv_cb(_recv_cb_arg, this, b->payload, b->len);
+        } else
+#endif // ASYNC_TCP_SSL_ENABLED
+        {
+            //we should not ack before we assimilate the data
+            _ack_pcb = true;
+            if(_pb_cb){
+                _pb_cb(_pb_cb_arg, this, pb);
+            } else {
+                if(_recv_cb) {
+                    _recv_cb(_recv_cb_arg, this, pb->payload, pb->len);
+                }
+                if(!_ack_pcb) {
+                    _rx_ack_len += pb->len;
+                } else if(_pcb) {
+                    _tcp_recved(_pcb, pb->len, this);
+                }
+                pbuf_free(pb);
             }
-            if(!_ack_pcb) {
-                _rx_ack_len += b->len;
-            } else if(_pcb) {
-                _tcp_recved(_pcb, b->len, this);
-            }
-            pbuf_free(b);
         }
+
+        pb = nxt;
     }
     return ERR_OK;
 }
