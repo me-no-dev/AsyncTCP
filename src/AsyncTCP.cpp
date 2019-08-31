@@ -294,10 +294,15 @@ static void _tcp_error(void * arg, int8_t err) {
 
 static void _tcp_dns_found(const char * name, struct ip_addr * ipaddr, void * arg) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    //ets_printf("+DNS: name=%s ipaddr=0x%08x arg=%x\n", name, ipaddr, arg);
     e->event = LWIP_TCP_DNS;
     e->arg = arg;
     e->dns.name = name;
-    memcpy(&e->dns.addr, ipaddr, sizeof(struct ip_addr));
+    if (ipaddr) {
+        memcpy(&e->dns.addr, ipaddr, sizeof(struct ip_addr));
+    } else {
+        memset(&e->dns.addr, 0, sizeof(e->dns.addr));
+    }
     if (!_send_async_event(&e)) {
         free((void*)(e));
     }
@@ -912,7 +917,7 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 }
 
 void AsyncClient::_dns_found(struct ip_addr *ipaddr){
-    if(ipaddr){
+    if(ipaddr && ipaddr->u_addr.ip4.addr){
         connect(IPAddress(ipaddr->u_addr.ip4.addr), _connect_port);
     } else {
         if(_error_cb) {
