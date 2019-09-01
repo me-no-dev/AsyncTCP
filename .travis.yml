@@ -1,17 +1,21 @@
 sudo: false
-
-language: python
-python:
-  - "2.7"
-
+language: bash
 os:
   - linux
 
-dist:
-  - xenial
+git:
+  depth: false
 
-script:
-  - bash $TRAVIS_BUILD_DIR/travis/build.sh
+stages:
+  - build
+
+jobs:
+  include:
+
+    - name: "Build Examples"
+      if: tag IS blank AND (type = pull_request OR (type = push AND branch = master))
+      stage: build
+      script: bash $TRAVIS_BUILD_DIR/travis/build.sh
 
 notifications:
   email:
