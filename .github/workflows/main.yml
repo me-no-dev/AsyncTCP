@@ -1,0 +1,32 @@
+name: Async TCP CI
+
+on:
+  push:
+    branches:
+    - master
+    - release/*
+  pull_request:
+
+jobs:
+
+  build-arduino:
+    name: Build Arduino
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build Tests
+      env:
+        TRAVIS_BUILD_DIR: ${{ github.workspace }}
+      run: bash $TRAVIS_BUILD_DIR/travis/build.sh
+
+  build-pio:
+    name: Build PlatformIO
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install Python Wheel
+      run: pip install wheel
+    - name: Build Tests
+      env:
+        TRAVIS_BUILD_DIR: ${{ github.workspace }}
+      run: bash $TRAVIS_BUILD_DIR/travis/build-pio.sh
