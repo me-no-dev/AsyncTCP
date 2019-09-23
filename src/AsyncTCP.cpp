@@ -79,8 +79,8 @@ typedef struct {
 static xQueueHandle _async_queue;
 static TaskHandle_t _async_service_task_handle = NULL;
 const int _number_of_closed_slots = 16;
-static int _closed_index = 1;
-static int _closed_slots[_number_of_closed_slots] = { 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 };
+static int _closed_index = 0;
+static int _closed_slots[_number_of_closed_slots];
 
 static inline bool _init_async_event_queue(){
     if(!_async_queue){
@@ -555,11 +555,18 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
     _closed_slot = -1;
     if(_pcb){
         _closed_slot = 0;
-        int closed_slot_min_index = _closed_slots[0];
-        for (int i = 0; i < _number_of_closed_slots; ++ i) {
-            if (_closed_slots[i] <= closed_slot_min_index && _closed_slots[i] != 0) {
-                closed_slot_min_index = _closed_slots[i];
-                _closed_slot = i;
+        if (_closed_index == 0) {
+            _closed_index = 1;
+            for (int i = 0; i < _number_of_closed_slots; ++ i) {
+                _closed_slots[i] = 1;
+            }
+        } else {
+            int closed_slot_min_index = _closed_slots[0];
+            for (int i = 0; i < _number_of_closed_slots; ++ i) {
+                if (_closed_slots[i] <= closed_slot_min_index && _closed_slots[i] != 0) {
+                    closed_slot_min_index = _closed_slots[i];
+                    _closed_slot = i;
+                }
             }
         }
         _closed_slots[_closed_slot] = 0;
