@@ -78,7 +78,7 @@ typedef struct {
 
 static xQueueHandle _async_queue;
 static TaskHandle_t _async_service_task_handle = NULL;
-const int _number_of_closed_slots = 16;
+const int _number_of_closed_slots = CONFIG_LWIP_MAX_ACTIVE_TCP;
 static int _closed_index = 0;
 static int _closed_slots[_number_of_closed_slots];
 
