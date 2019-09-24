@@ -159,6 +159,7 @@ class AsyncClient {
   protected:
     tcp_pcb* _pcb;
     std::string _hostname;
+    int8_t  _closed_slot;
 
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;
