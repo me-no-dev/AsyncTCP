@@ -309,7 +309,7 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident
   mbedtls_ssl_config_init(&tcp_ssl->ssl_conf);
 
   mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func,
-                        &tcp_ssl->entropy_ctx, (const unsigned char*)pers, strlen(pers));
+                        &tcp_ssl->entropy_ctx, (const uint8_t*)pers, strlen(pers));
 
   if(mbedtls_ssl_config_defaults(&tcp_ssl->ssl_conf,
     MBEDTLS_SSL_IS_CLIENT,
@@ -415,14 +415,13 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
   if(tcp == NULL) {
     return -1;
   }
-  tcp_ssl_t* tcp_ssl = NULL;
 
   int read_bytes = 0;
   int total_bytes = 0;
   static const size_t read_buf_size = 1024;
   uint8_t read_buf[read_buf_size];
 
-  tcp_ssl = tcp_ssl_get(tcp);
+  tcp_ssl_t *tcp_ssl = tcp_ssl_get(tcp);
   if(tcp_ssl == NULL) {
     return ERR_TCP_SSL_INVALID_CLIENTFD_DATA;
   }

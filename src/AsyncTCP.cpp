@@ -542,11 +542,11 @@ extern "C" {
     // They are callable from C and take a void* instead of an AsyncClient*.
 
     esp_err_t _tcp_output4ssl(tcp_pcb * pcb, void* client) {
-        return _tcp_output(pcb, (AsyncClient *)client);
+        return _tcp_output(pcb, reinterpret_cast<AsyncClient *>client);
     }
 
     esp_err_t _tcp_write4ssl(tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client) {
-        return _tcp_write(pcb, data, size, apiflags, (AsyncClient *)client);
+        return _tcp_write(pcb, data, size, apiflags, reinterpret_cast<AsyncClient *>client);
     }
 
 }
