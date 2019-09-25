@@ -82,8 +82,8 @@ static TaskHandle_t _async_service_task_handle = NULL;
 
 SemaphoreHandle_t _slots_lock;
 const int _number_of_closed_slots = CONFIG_LWIP_MAX_ACTIVE_TCP;
-static int _closed_slots[_number_of_closed_slots];
-static int _closed_index = []() {
+static int32_t _closed_slots[_number_of_closed_slots];
+static int32_t _closed_index = []() {
     _slots_lock = xSemaphoreCreateBinary();
     xSemaphoreGive(_slots_lock);
     for (int i = 0; i < _number_of_closed_slots; ++ i) {
@@ -573,7 +573,9 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
                 _closed_slot = i;
             }
         }
-        _closed_slots[_closed_slot] = 0;
+        if (_closed_slot != -1) {
+            _closed_slots[_closed_slot] = 0;
+        }
         xSemaphoreGive(_slots_lock);
 
         _rx_last_packet = millis();
@@ -714,7 +716,6 @@ bool AsyncClient::connect(const char* host, uint16_t port){
     ip_addr_t addr;
     
     if(!_start_async_task()){
-      Serial.println("failed to start task");
       log_e("failed to start task");
       return false;
     }
@@ -875,7 +876,9 @@ int8_t AsyncClient::_lwip_fin(tcp_pcb* pcb, int8_t err) {
     if(tcp_close(_pcb) != ERR_OK) {
         tcp_abort(_pcb);
     }
-    _closed_slots[_closed_slot] = _closed_index;
+    if (_closed_slot != -1) {
+        _closed_slots[_closed_slot] = _closed_index;
+    }
     ++ _closed_index;
     _pcb = NULL;
     return ERR_OK;
