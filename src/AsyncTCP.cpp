@@ -82,8 +82,8 @@ static TaskHandle_t _async_service_task_handle = NULL;
 
 SemaphoreHandle_t _slots_lock;
 const int _number_of_closed_slots = CONFIG_LWIP_MAX_ACTIVE_TCP;
-static int32_t _closed_slots[_number_of_closed_slots];
-static int32_t _closed_index = []() {
+static uint32_t _closed_slots[_number_of_closed_slots];
+static uint32_t _closed_index = []() {
     _slots_lock = xSemaphoreCreateBinary();
     xSemaphoreGive(_slots_lock);
     for (int i = 0; i < _number_of_closed_slots; ++ i) {
@@ -565,19 +565,7 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
     _pcb = pcb;
     _closed_slot = -1;
     if(_pcb){
-        xSemaphoreTake(_slots_lock, portMAX_DELAY);
-        int closed_slot_min_index = 0;
-        for (int i = 0; i < _number_of_closed_slots; ++ i) {
-            if ((_closed_slot == -1 || _closed_slots[i] <= closed_slot_min_index) && _closed_slots[i] != 0) {
-                closed_slot_min_index = _closed_slots[i];
-                _closed_slot = i;
-            }
-        }
-        if (_closed_slot != -1) {
-            _closed_slots[_closed_slot] = 0;
-        }
-        xSemaphoreGive(_slots_lock);
-
+        _allocate_closed_slot();
         _rx_last_packet = millis();
         tcp_arg(_pcb, this);
         tcp_recv(_pcb, &_tcp_recv);
@@ -591,6 +579,7 @@ AsyncClient::~AsyncClient(){
     if(_pcb) {
         _close();
     }
+    _free_closed_slot();
 }
 
 /*
@@ -826,6 +815,29 @@ int8_t AsyncClient::_close(){
     return err;
 }
 
+void AsyncClient::_allocate_closed_slot(){
+    xSemaphoreTake(_slots_lock, portMAX_DELAY);
+    uint32_t closed_slot_min_index = 0;
+    for (int i = 0; i < _number_of_closed_slots; ++ i) {
+        if ((_closed_slot == -1 || _closed_slots[i] <= closed_slot_min_index) && _closed_slots[i] != 0) {
+            closed_slot_min_index = _closed_slots[i];
+            _closed_slot = i;
+        }
+    }
+    if (_closed_slot != -1) {
+        _closed_slots[_closed_slot] = 0;
+    }
+    xSemaphoreGive(_slots_lock);
+}
+
+void AsyncClient::_free_closed_slot(){
+    if (_closed_slot != -1) {
+        _closed_slots[_closed_slot] = _closed_index;
+        _closed_slot = -1;
+        ++ _closed_index;
+    }
+}
+
 /*
  * Private Callbacks
  * */
@@ -876,10 +888,7 @@ int8_t AsyncClient::_lwip_fin(tcp_pcb* pcb, int8_t err) {
     if(tcp_close(_pcb) != ERR_OK) {
         tcp_abort(_pcb);
     }
-    if (_closed_slot != -1) {
-        _closed_slots[_closed_slot] = _closed_index;
-    }
-    ++ _closed_index;
+    _free_closed_slot();
     _pcb = NULL;
     return ERR_OK;
 }

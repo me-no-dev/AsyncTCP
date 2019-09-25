@@ -170,6 +170,8 @@ class AsyncClient {
     uint16_t _connect_port;
 
     int8_t _close();
+    void _free_closed_slot();
+    void _allocate_closed_slot();
     int8_t _connected(void* pcb, int8_t err);
     void _error(int8_t err);
     int8_t _poll(tcp_pcb* pcb);
