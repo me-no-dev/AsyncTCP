@@ -548,16 +548,28 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
 }
 
 #if ASYNC_TCP_SSL_ENABLED
+// Jump pads for _tcp_*4ssl function below to get access to _closed_slot.
+// I'm sure there has to be a better way to do this...
+
+esp_err_t AsyncClient::_tcp_output4ssl(tcp_pcb * pcb) {
+    return _tcp_output(pcb, _closed_slot);
+}
+
+esp_err_t AsyncClient::_tcp_write4ssl(tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags) {
+    return _tcp_write(pcb, _closed_slot, data, size, apiflags);
+}
+
 extern "C" {
-    // The following API stubs are for use in tcp_mbedtls.c
-    // They are callable from C and take a void* instead of an AsyncClient*.
+    // The following API stubs are callable from C for use in tcp_mbedtls.c
 
     esp_err_t _tcp_output4ssl(tcp_pcb * pcb, void* client) {
-        return _tcp_output(pcb, reinterpret_cast<AsyncClient *>client);
+        AsyncClient *cli = reinterpret_cast<AsyncClient *>(client);
+        return cli->_tcp_output4ssl(pcb);
     }
 
     esp_err_t _tcp_write4ssl(tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client) {
-        return _tcp_write(pcb, data, size, apiflags, reinterpret_cast<AsyncClient *>client);
+        AsyncClient *cli = reinterpret_cast<AsyncClient *>(client);
+        return cli->_tcp_write4ssl(pcb, data, size, apiflags);
     }
 
 }
@@ -1057,7 +1069,7 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             // log_i("_recv: %d\n", pb->tot_len);
             int err = tcp_ssl_read(pcb, pb);
             // tcp_ssl_read always processes the full pbuf, so ack all of it
-            _tcp_recved(pcb, pb->len);
+            _tcp_recved(pcb, _closed_slot, pb->len);
             pbuf_free(pb);
             // handle errors
             if(err < 0){

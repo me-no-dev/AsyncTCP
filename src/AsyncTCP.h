@@ -151,6 +151,8 @@ class AsyncClient {
     static void _s_data(void *arg, struct tcp_pcb *tcp, uint8_t * data, size_t len);
     static void _s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl);
     static void _s_ssl_error(void *arg, struct tcp_pcb *tcp, int8_t err);
+    esp_err_t _tcp_output4ssl(tcp_pcb * pcb);
+    esp_err_t _tcp_write4ssl(tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags);
 #endif // ASYNC_TCP_SSL_ENABLED
 
     int8_t _recv(tcp_pcb* pcb, pbuf* pb, int8_t err);
