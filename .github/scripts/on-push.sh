@@ -32,7 +32,7 @@ if [ "$BUILD_PIO" -eq 0 ]; then
 
 	FQBN="espressif:esp32:esp32:PSRAM=enabled,PartitionScheme=huge_app"
 	build_sketches "$FQBN" "$GITHUB_WORKSPACE/examples"
-	if [ -x "$OS_IS_WINDOWS" ]; then
+	if [ ! "$OS_IS_WINDOWS" == "1" ]; then
 		echo "Installing ESPAsyncWebServer ..."
 		git clone https://github.com/me-no-dev/ESPAsyncWebServer "$ARDUINO_USR_PATH/libraries/ESPAsyncWebServer" > /dev/null 2>&1
 
