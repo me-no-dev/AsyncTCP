@@ -15,12 +15,12 @@ jobs:
     - name: "Arduino Build"
       if: tag IS blank AND (type = pull_request OR (type = push AND branch = master))
       stage: build
-      script: bash $TRAVIS_BUILD_DIR/travis/build.sh
+      script: bash $TRAVIS_BUILD_DIR/.github/scripts/on-push.sh
 
     - name: "PlatformIO Build"
       if: tag IS blank AND (type = pull_request OR (type = push AND branch = master))
       stage: build
-      script: bash $TRAVIS_BUILD_DIR/travis/build-pio.sh
+      script: bash $TRAVIS_BUILD_DIR/.github/scripts/on-push.sh 1 1
 
 notifications:
   email:
