@@ -1,5 +1,7 @@
-# AsyncTCP 
+# AsyncTCP
 [![Build Status](https://travis-ci.org/me-no-dev/AsyncTCP.svg?branch=master)](https://travis-ci.org/me-no-dev/AsyncTCP) ![](https://github.com/me-no-dev/AsyncTCP/workflows/Async%20TCP%20CI/badge.svg) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/2f7e4d1df8b446d192cbfec6dc174d2d)](https://www.codacy.com/manual/me-no-dev/AsyncTCP?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=me-no-dev/AsyncTCP&amp;utm_campaign=Badge_Grade)
+
+A fork of the [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) library by [@me-no-dev](https://github.com/me-no-dev) for [ESPHome](https://esphome.io).
 
 ### Async TCP Library for ESP32 Arduino
 

@@ -1,5 +1,5 @@
 {
-  "name":"AsyncTCP",
+  "name":"AsyncTCP-esphome",
   "description":"Asynchronous TCP Library for ESP32",
   "keywords":"async,tcp",
   "authors":
@@ -10,7 +10,7 @@
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/me-no-dev/AsyncTCP.git"
+    "url": "https://github.com/OttoWinter/AsyncTCP.git"
   },
   "version": "1.1.1",
   "license": "LGPL-3.0",
@@ -18,5 +18,5 @@
   "platforms": "espressif32",
   "build": {
     "libCompatMode": 2
-  }  
+  }
 }
