@@ -847,7 +847,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
 void AsyncClient::_error(int8_t err) {
     if(_pcb){
         tcp_arg(_pcb, NULL);
-		if(_pcb->state == LISTEN) {
+        if(_pcb->state == LISTEN) {
             tcp_sent(_pcb, NULL);
             tcp_recv(_pcb, NULL);
             tcp_err(_pcb, NULL);
