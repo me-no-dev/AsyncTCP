@@ -847,10 +847,6 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
 void AsyncClient::_error(int8_t err) {
     if(_pcb){
         tcp_arg(_pcb, NULL);
-        tcp_sent(_pcb, NULL);
-        tcp_recv(_pcb, NULL);
-        tcp_err(_pcb, NULL);
-        tcp_poll(_pcb, NULL, 0);
         _pcb = NULL;
     }
     if(_error_cb) {
@@ -868,10 +864,12 @@ int8_t AsyncClient::_lwip_fin(tcp_pcb* pcb, int8_t err) {
         return ERR_OK;
     }
     tcp_arg(_pcb, NULL);
-    tcp_sent(_pcb, NULL);
-    tcp_recv(_pcb, NULL);
-    tcp_err(_pcb, NULL);
-    tcp_poll(_pcb, NULL, 0);
+    if(_pcb->state == LISTEN) {
+        tcp_sent(_pcb, NULL);
+        tcp_recv(_pcb, NULL);
+        tcp_err(_pcb, NULL);
+        tcp_poll(_pcb, NULL, 0);
+    }
     if(tcp_close(_pcb) != ERR_OK) {
         tcp_abort(_pcb);
     }
