@@ -152,7 +152,10 @@ static bool _remove_events_with_arg(void * arg){
 }
 
 static void _handle_async_event(lwip_event_packet_t * e){
-    if(e->event == LWIP_TCP_CLEAR){
+    if(e->arg == NULL){
+        // do nothing when arg is NULL
+        //ets_printf("event arg == NULL: 0x%08x\n", e->recv.pcb);
+    } else if(e->event == LWIP_TCP_CLEAR){
         _remove_events_with_arg(e->arg);
     } else if(e->event == LWIP_TCP_RECV){
         //ets_printf("-R: 0x%08x\n", e->recv.pcb);
