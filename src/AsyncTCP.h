@@ -76,6 +76,8 @@ class AsyncClient {
     bool connect(IPAddress ip, uint16_t port, bool secure = false);
     bool connect(const char* host, uint16_t port,  bool secure = false);
     void setRootCa(const char* rootca, const size_t len);
+    void setClientCert(const char* cli_cert, const size_t len);
+    void setClientKey(const char* cli_key, const size_t len);
     void setPsk(const char* psk_ident, const char* psk);
 #else
     bool connect(IPAddress ip, uint16_t port);
@@ -194,6 +196,10 @@ class AsyncClient {
 #if ASYNC_TCP_SSL_ENABLED
     size_t _root_ca_len;
     char* _root_ca;
+    size_t _cli_cert_len;
+    char* _cli_cert;
+    size_t _cli_key_len;
+    char* _cli_key;
     bool _pcb_secure;
     bool _handshake_done;
     const char* _psk_ident;

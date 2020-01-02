@@ -606,6 +606,10 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 #if ASYNC_TCP_SSL_ENABLED
 , _root_ca_len(0)
 , _root_ca(NULL)
+, _cli_cert_len(0)
+, _cli_cert(NULL)
+, _cli_key_len(0)
+, _cli_key(NULL)
 , _pcb_secure(false)
 , _handshake_done(true)
 , _psk_ident(0)
@@ -829,6 +833,16 @@ void AsyncClient::setRootCa(const char* rootca, const size_t len) {
     _root_ca_len = len;
 }
 
+void AsyncClient::setClientCert(const char* cli_cert, const size_t len) {
+    _cli_cert = (char*)cli_cert;
+    _cli_cert_len = len;
+}
+
+void AsyncClient::setClientKey(const char* cli_key, const size_t len) {
+    _cli_key = (char*)cli_key;
+    _cli_key_len = len;
+}
+
 void AsyncClient::setPsk(const char* psk_ident, const char* psk) {
     _psk_ident = psk_ident;
     _psk = psk;
@@ -978,7 +992,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
                 err = tcp_ssl_new_psk_client(_pcb, this, _psk_ident, _psk) < 0;
             } else {
                 err = tcp_ssl_new_client(_pcb, this, _hostname.empty() ? NULL : _hostname.c_str(),
-                        _root_ca, _root_ca_len) < 0;
+                    _root_ca, _root_ca_len, _cli_cert, _cli_cert_len, _cli_key, _cli_key_len) < 0;
             }
             if (err) {
                 log_e("closing....");

@@ -63,6 +63,10 @@ struct tcp_ssl_pcb {
   mbedtls_ssl_context ssl_ctx;
   mbedtls_ssl_config ssl_conf;
   mbedtls_x509_crt ca_cert;
+  bool has_ca_cert;
+  mbedtls_x509_crt client_cert;
+  bool has_client_cert;
+  mbedtls_pk_context client_key;
   mbedtls_ctr_drbg_context drbg_ctx;
   mbedtls_entropy_context entropy_ctx;
   uint8_t type;
@@ -185,6 +189,8 @@ tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp, void* arg) {
   new_item->tcp_pbuf = NULL;
   new_item->pbuf_offset = 0;
   new_item->next = NULL;
+  new_item->has_ca_cert = false;
+  new_item->has_client_cert = false;
 
   if(tcp_ssl_array == NULL){
     tcp_ssl_array = new_item;
@@ -209,7 +215,8 @@ tcp_ssl_t* tcp_ssl_get(struct tcp_pcb *tcp) {
   return item;
 }
 
-int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, const char* root_ca, const size_t root_ca_len) {
+int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, const char* root_ca, const size_t root_ca_len,
+                       const char* cli_cert, const size_t cli_cert_len, const char* cli_key, const size_t cli_key_len) {
   tcp_ssl_t* tcp_ssl;
 
   if(tcp == NULL) {
@@ -229,6 +236,15 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   mbedtls_ctr_drbg_init(&tcp_ssl->drbg_ctx);
   mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
   mbedtls_ssl_config_init(&tcp_ssl->ssl_conf);
+  if(root_ca != NULL) {
+    mbedtls_x509_crt_init(&tcp_ssl->ca_cert);
+    tcp_ssl->has_ca_cert = true;
+  }
+  if (cli_cert != NULL && cli_key != NULL) {
+    mbedtls_x509_crt_init(&tcp_ssl->client_cert);
+    mbedtls_pk_init(&tcp_ssl->client_key);
+    tcp_ssl->has_client_cert = true;
+  }
 
   mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func,
                         &tcp_ssl->entropy_ctx, (const unsigned char*)pers, sizeof(pers));
@@ -245,7 +261,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
 
   int ret = 0;
 
-  if(root_ca != NULL && root_ca_len > 0) {
+  if(tcp_ssl->has_ca_cert) {
     TCP_SSL_DEBUG("setting the root ca.\n");
 
     mbedtls_x509_crt_init(&tcp_ssl->ca_cert);
@@ -255,12 +271,29 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
     ret = mbedtls_x509_crt_parse(&tcp_ssl->ca_cert, (const unsigned char *)root_ca, root_ca_len);
     if( ret < 0 ){
       TCP_SSL_DEBUG(" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
+      tcp_ssl_free(tcp);
       return handle_error(ret);
     }
 
     mbedtls_ssl_conf_ca_chain(&tcp_ssl->ssl_conf, &tcp_ssl->ca_cert, NULL);
   } else {
     mbedtls_ssl_conf_authmode(&tcp_ssl->ssl_conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+  }
+
+  if (tcp_ssl->has_client_cert) {
+    TCP_SSL_DEBUG("loading client cert");
+    ret = mbedtls_x509_crt_parse(&tcp_ssl->client_cert, (const unsigned char *) cli_cert, cli_cert_len);
+    if (ret < 0) {
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+    } 
+    TCP_SSL_DEBUG("loading private key");
+    ret = mbedtls_pk_parse_key(&tcp_ssl->client_key, (const unsigned char *) cli_key, cli_key_len, NULL, 0);
+    if (ret != 0) {
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+    }
+    mbedtls_ssl_conf_own_cert(&tcp_ssl->ssl_conf, &tcp_ssl->client_cert, &tcp_ssl->client_key);
   }
 
   if(hostname != NULL) {
@@ -273,7 +306,6 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   }
 
   mbedtls_ssl_conf_rng(&tcp_ssl->ssl_conf, mbedtls_ctr_drbg_random, &tcp_ssl->drbg_ctx);
-  // mbedtls_ssl_conf_verify(&tcp_ssl->ssl_conf, my_verify, NULL);
 
   if ((ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf)) != 0) {
     tcp_ssl_free(tcp);
@@ -287,6 +319,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
   if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
     TCP_SSL_DEBUG("handshake error!\n");
+    tcp_ssl_free(tcp);
     return handle_error(ret);
   }
 
@@ -450,6 +483,16 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
       if(ret == 0) {
         TCP_SSL_DEBUG("Protocol is %s Ciphersuite is %s\n", mbedtls_ssl_get_version(&tcp_ssl->ssl_ctx), mbedtls_ssl_get_ciphersuite(&tcp_ssl->ssl_ctx));
 
+        TCP_SSL_DEBUG("Verifying peer X.509 certificate...");
+        if ((mbedtls_ssl_get_verify_result(&tcp_ssl->ssl_ctx)) != 0) {
+          TCP_SSL_DEBUG("handshake error: %d\n", ret);
+          handle_error(ret);
+          if(tcp_ssl->on_error)
+            tcp_ssl->on_error(tcp_ssl->arg, tcp_ssl->tcp, ret);
+        } else {
+          TCP_SSL_DEBUG("Certificate verified.");
+        }
+
         if(tcp_ssl->on_handshake)
           tcp_ssl->on_handshake(tcp_ssl->arg, tcp_ssl->tcp, tcp_ssl);
       } else if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
@@ -501,6 +544,13 @@ int tcp_ssl_free(struct tcp_pcb *tcp) {
     mbedtls_ssl_config_free(&item->ssl_conf);
     mbedtls_ctr_drbg_free(&item->drbg_ctx);
     mbedtls_entropy_free(&item->entropy_ctx);
+    if(item->has_ca_cert) {
+      mbedtls_x509_crt_free(&item->ca_cert);
+    }
+    if (item->has_client_cert) {
+      mbedtls_x509_crt_free(&item->client_cert);
+      mbedtls_pk_free(&item->client_key);
+    }
     free(item);
     return 0;
   }
