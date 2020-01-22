@@ -305,6 +305,12 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident
   if(tcp == NULL) return -1;
   if(tcp_ssl_get(tcp) != NULL) return -1;
 
+  int pskey_len = strnlen(pskey, 2*MBEDTLS_PSK_MAX_LEN+1);
+  if ((pskey_len > 2*MBEDTLS_PSK_MAX_LEN) || (pskey_len & 1) != 0) {
+      TCP_SSL_DEBUG(" failed\n  !  pre-shared key not valid hex or too long\n\n");
+      return -1;
+  }
+
   tcp_ssl = tcp_ssl_new(tcp, arg);
   if(tcp_ssl == NULL) return -1;
 
@@ -332,13 +338,9 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident
 
   TCP_SSL_DEBUG("setting the pre-shared key.\n");
   // convert PSK from hex string to binary
-  if ((strlen(pskey) & 1) != 0 || strlen(pskey) > 2*MBEDTLS_PSK_MAX_LEN) {
-      TCP_SSL_DEBUG(" failed\n  !  pre-shared key not valid hex or too long\n\n");
-      return -1;
-  }
   unsigned char psk[MBEDTLS_PSK_MAX_LEN];
-  size_t psk_len = strlen(pskey)/2;
-  for (int j=0; j<strlen(pskey); j+= 2) {
+  size_t psk_len = pskey_len/2;
+  for (int j=0; j<pskey_len; j+= 2) {
       char c = pskey[j];
       if (c >= '0' && c <= '9') c -= '0';
       else if (c >= 'A' && c <= 'F') c -= 'A' - 10;
@@ -354,7 +356,7 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident
   }
   // set mbedtls config
   ret = mbedtls_ssl_conf_psk(&tcp_ssl->ssl_conf, psk, psk_len,
-           (const unsigned char *)psk_ident, strlen(psk_ident));
+           (const unsigned char *)psk_ident, strnlen(psk_ident, 64));
   if (ret != 0) {
       TCP_SSL_DEBUG("  failed\n  !  mbedtls_ssl_conf_psk returned -0x%x\n\n", -ret);
       return handle_error(ret);
