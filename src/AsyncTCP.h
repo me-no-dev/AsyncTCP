@@ -26,8 +26,10 @@
 #include "sdkconfig.h"
 #include <functional>
 #include <string>
+#if ASYNC_TCP_SSL_ENABLED
 #include <ssl_client.h>
 #include "tcp_mbedtls.h"
+#endif
 extern "C" {
     #include "freertos/semphr.h"
     #include "lwip/pbuf.h"
