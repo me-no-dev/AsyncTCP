@@ -662,7 +662,7 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other){
             _handshake_done = false;
             tcp_ssl_arg(_pcb, this);
             tcp_ssl_data(_pcb, &_s_data);
-            tcp_ssl_handshake(_pcb, &_s_handshake);
+            tcp_ssl_handshake(_pcb, this, &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
         } else {
             _pcb_secure = false;
@@ -775,6 +775,7 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     tcp_sent(pcb, &_tcp_sent);
     tcp_poll(pcb, &_tcp_poll, 1);
     //_tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
+    log_d("_tcp_connect");
     _tcp_connect(pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
     return true;
 }
@@ -1000,7 +1001,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
             }
 
             tcp_ssl_data(_pcb, &_s_data);
-            tcp_ssl_handshake(_pcb, &_s_handshake);
+            tcp_ssl_handshake(_pcb, this, &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
         }
 #endif // ASYNC_TCP_SSL_ENABLED
@@ -1091,6 +1092,7 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
 }
 
 int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
+    log_d("_recv_recv_recv_recv_recv_recv_recv");
     while(pb != NULL) {
         _rx_last_packet = millis();
         pbuf *nxt = pb->next;
@@ -1462,6 +1464,9 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 , _pcb(0)
 , _connect_cb(0)
 , _connect_cb_arg(0)
+#if ASYNC_TCP_SSL_ENABLED
+, _pcb_secure(false)
+#endif // ASYNC_TCP_SSL_ENABLED
 {}
 
 AsyncServer::AsyncServer(uint16_t port)
@@ -1471,6 +1476,9 @@ AsyncServer::AsyncServer(uint16_t port)
 , _pcb(0)
 , _connect_cb(0)
 , _connect_cb_arg(0)
+#if ASYNC_TCP_SSL_ENABLED
+, _pcb_secure(false)
+#endif // ASYNC_TCP_SSL_ENABLED
 {}
 
 AsyncServer::~AsyncServer(){
@@ -1534,10 +1542,16 @@ void AsyncServer::end(){
 int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
     //ets_printf("+A: 0x%08x\n", pcb);
     if(_connect_cb){
+        log_d("Create AsyncClient");
         AsyncClient *c = new AsyncClient(pcb);
-        if(c){
+        tcp_ssl_new_server_client(pcb, c, &ssl, &conf);
+        if (c) {
             c->setNoDelay(_noDelay);
+            c->_pcb_secure = true;
+            c->_handshake_done = false;
             return _tcp_accept(this, c);
+        } else if (c) {
+            delete c;
         }
     }
     if(tcp_close(pcb) != ERR_OK){
@@ -1547,8 +1561,20 @@ int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
     return ERR_OK;
 }
 
+struct BlaBla {
+    AsyncClient* cllient;
+    AsyncServer* server;
+};
+
 int8_t AsyncServer::_accepted(AsyncClient* client){
-    if(_connect_cb){
+    if (_pcb_secure) {
+        BlaBla *b = new BlaBla {
+            client, this
+        };
+        tcp_ssl_data(client->pcb(), &AsyncClient::_s_data);
+        tcp_ssl_err(client->pcb(), &AsyncClient::_s_ssl_error);
+        tcp_ssl_handshake(client->pcb(), b, &_s_handshake);
+    } else if(_connect_cb){
         _connect_cb(_connect_cb_arg, client);
     }
     return ERR_OK;
@@ -1569,10 +1595,279 @@ uint8_t AsyncServer::status(){
     return _pcb->state;
 }
 
+void AsyncServer::_handshake(AsyncClient* client){
+    log_d("handshake completed");
+    client->_handshake_done = true;
+    if(_connect_cb){
+        _connect_cb(_connect_cb_arg, client);
+    }
+}
+
 int8_t AsyncServer::_s_accept(void * arg, tcp_pcb * pcb, int8_t err){
     return reinterpret_cast<AsyncServer*>(arg)->_accept(pcb, err);
 }
 
 int8_t AsyncServer::_s_accepted(void *arg, AsyncClient* client){
     return reinterpret_cast<AsyncServer*>(arg)->_accepted(client);
+}
+
+void AsyncServer::_s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl){
+    BlaBla *b = reinterpret_cast<BlaBla*>(arg);
+    b->server->_handshake(b->cllient);
+    delete b;
+}
+
+static int handle_ssl_error(int err) {
+    if(err == -30848){
+        return err;
+    }
+#ifdef MBEDTLS_ERROR_C
+    char error_buf[100];
+    mbedtls_strerror(err, error_buf, 100);
+    log_e("%s\n", error_buf);
+#endif
+    log_e("MbedTLS message code: %d\n", err);
+    return err;
+}
+
+#define HTTP_RESPONSE \
+    "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n" \
+    "<h2>mbed TLS Test Server</h2>\r\n" \
+    "<p>Successful connection using: %s</p>\r\n"
+
+void AsyncServer::beginSecure(const char *cert, const char *private_key_file, const char *password) {
+    _pcb_secure = true;
+
+    mbedtls_net_init( &listen_fd );
+    mbedtls_net_init( &client_fd );
+    mbedtls_ssl_init( &ssl );
+    mbedtls_ssl_config_init( &conf );
+    mbedtls_x509_crt_init( &srvcert );
+    mbedtls_pk_init( &pkey );
+    mbedtls_entropy_init( &entropy );
+    mbedtls_ctr_drbg_init( &ctr_drbg );
+
+    /*
+     * 1. Load the certificates and private RSA key
+     */
+    log_d( "Loading the server cert. and key..." );
+
+    /*
+     * This demonstration program uses embedded test certificates.
+     * Instead, you may want to use mbedtls_x509_crt_parse_file() to read the
+     * server and CA certificates, as well as mbedtls_pk_parse_keyfile().
+     */
+    const char* mbedtls_test_srv_crt = cert;
+    size_t mbedtls_test_srv_crt_len = strlen(cert) + 1;
+    int ret, len;
+    ret = mbedtls_x509_crt_parse( &srvcert, (const unsigned char *) mbedtls_test_srv_crt, mbedtls_test_srv_crt_len );
+
+    if( ret != 0 )
+    {
+        log_e( " failed\n  !  mbedtls_x509_crt_parse returned %d", ret );
+        handle_ssl_error(ret);
+        end(); return; // TODO: clear stugg
+    }
+
+    const char* mbedtls_test_srv_key = private_key_file;
+    size_t mbedtls_test_srv_key_len = strlen(private_key_file) + 1;
+
+    ret =  mbedtls_pk_parse_key( &pkey, (const unsigned char *) mbedtls_test_srv_key,
+                         mbedtls_test_srv_key_len, NULL, 0 );
+    if( ret != 0 )
+    {
+        log_e( " failed\n  !  mbedtls_pk_parse_key returned %d", ret );
+        handle_ssl_error(ret);
+        end(); return; // TODO: clear stugg
+    }
+    log_d("ok");
+
+    /*
+     * 3. Seed the RNG
+     */
+    log_d( "  . Seeding the random number generator..." );
+    const char *pers = "dtls_server";
+
+    if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy,
+                               (const unsigned char *) pers,
+                               strlen( pers ) ) ) != 0 )
+    {
+        log_d( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret );
+        end(); return; // TODO: clear stugg
+    }
+    log_d("ok");
+
+    /*
+     * 4. Setup stuff
+     */
+    log_d( "  . Setting up the SSL data..." );
+
+    if( ( ret = mbedtls_ssl_config_defaults( &conf,
+                    MBEDTLS_SSL_IS_SERVER,
+                    MBEDTLS_SSL_TRANSPORT_STREAM,
+                    MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
+    {
+        log_d( " failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret );
+        end(); return; // TODO: clear stugg
+    }
+
+    mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
+
+
+    mbedtls_ssl_conf_ca_chain( &conf, srvcert.next, NULL );
+   if( ( ret = mbedtls_ssl_conf_own_cert( &conf, &srvcert, &pkey ) ) != 0 )
+    {
+        log_d( " failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n", ret );
+        end(); return; // TODO: clear stugg
+    }
+
+    if( ( ret = mbedtls_ssl_setup( &ssl, &conf ) ) != 0 )
+    {
+        log_d( " failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret );
+        end(); return; // TODO: clear stugg
+    }
+
+    log_d( " ok\n" );
+
+    begin();
+    return;
+/********************************************************?
+
+        /*
+     * 2. Setup the "listening" TCP socket
+     */
+    log_d( "  . Bind on tcp/*/443 ..." );
+    if( ( ret = mbedtls_net_bind( &listen_fd, NULL, "443", MBEDTLS_NET_PROTO_TCP ) ) != 0 )
+    {
+        printf( " failed\n  ! mbedtls_net_bind returned %d\n\n", ret );
+        handle_ssl_error(ret);
+        end(); return; // TODO: clear stugg
+    }
+
+    log_d("ok");
+reset:
+    mbedtls_net_free( &client_fd );
+    mbedtls_ssl_session_reset( &ssl );
+
+    /*
+     * 3. Wait until a client connects
+     */
+    log_d( "  . Waiting for a remote connection ..." );    
+
+    if( ( ret = mbedtls_net_accept( &listen_fd, &client_fd, NULL, 0, NULL ) ) != 0 )
+    {
+        log_d( " failed\n  ! mbedtls_net_accept returned %d\n\n", ret );
+        end(); return; // TODO: clear stugg
+    }
+
+    mbedtls_ssl_set_bio( &ssl, &client_fd,
+                         mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout );
+
+    log_d( " ok\n" );
+
+    /*
+     * 5. Handshake
+     */
+    log_d( "  . Performing the SSL/TLS handshake..." );
+
+    while( ( ret = mbedtls_ssl_handshake( &ssl ) ) != 0 )
+    {
+        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+        {
+            log_d( " failed\n  ! mbedtls_ssl_handshake returned %d\n\n", ret );
+            goto reset;
+            // end(); return; // TODO: clear stugg
+        }
+    }
+
+    log_d( " ok\n" );
+
+    /*
+     * 6. Read the HTTP Request
+     */
+    log_d( "  < Read from client:" );
+    unsigned char buf[1024];
+    do
+    {
+        len = sizeof( buf ) - 1;
+        memset( buf, 0, sizeof( buf ) );
+        ret = mbedtls_ssl_read( &ssl, buf, len );
+
+        if( ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE )
+            continue;
+
+        if( ret <= 0 )
+        {
+            switch( ret )
+            {
+                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+                    log_d( " connection was closed gracefully\n" );
+                    break;
+
+                case MBEDTLS_ERR_NET_CONN_RESET:
+                    log_d( " connection was reset by peer\n" );
+                    break;
+
+                default:
+                    log_d( " mbedtls_ssl_read returned -0x%x\n", -ret );
+                    break;
+            }
+
+            break;
+        }
+
+        len = ret;
+        log_d( " %d bytes read\n\n%s", len, (char *) buf );
+
+        if( ret > 0 )
+            break;
+    }
+    while( 1 );
+
+
+
+
+    /*
+     * 7. Write the 200 Response
+     */
+    log_d( "  > Write to client:" );
+
+    len = sprintf( (char *) buf, HTTP_RESPONSE,
+                   mbedtls_ssl_get_ciphersuite( &ssl ) );
+
+    while( ( ret = mbedtls_ssl_write( &ssl, buf, len ) ) <= 0 )
+    {
+        if( ret == MBEDTLS_ERR_NET_CONN_RESET )
+        {
+            log_d( " failed\n  ! peer closed the connection\n\n" );
+            goto reset;
+        }
+
+        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+        {
+            log_d( " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret );
+            end(); return; // TODO: clear stugg
+        }
+    }
+
+    len = ret;
+    log_d( " %d bytes written\n\n%s\n", len, (char *) buf );
+
+    log_d( "  . Closing the connection..." );
+
+    while( ( ret = mbedtls_ssl_close_notify( &ssl ) ) < 0 )
+    {
+        if( ret != MBEDTLS_ERR_SSL_WANT_READ &&
+            ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+        {
+            log_d( " failed\n  ! mbedtls_ssl_close_notify returned %d\n\n", ret );
+            goto reset;
+        }
+    }
+
+    log_d( " ok\n" );
+
+    ret = 0;
+    goto reset;
+
 }

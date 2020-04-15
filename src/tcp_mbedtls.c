@@ -74,6 +74,7 @@ struct tcp_ssl_pcb {
   void* arg;
   tcp_ssl_data_cb_t on_data;
   tcp_ssl_handshake_cb_t on_handshake;
+  void* on_handshake_arg;
   tcp_ssl_error_cb_t on_error;
   size_t last_wr;
   struct pbuf *tcp_pbuf;
@@ -326,6 +327,41 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   return ERR_OK;
 }
 
+int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, mbedtls_ssl_context *ssl, const mbedtls_ssl_config *conf) {
+  tcp_ssl_t* tcp_ssl;
+
+  if(tcp == NULL) {
+    return -1;
+  }
+
+  if(tcp_ssl_get(tcp) != NULL){
+    return -1;
+  }
+
+  tcp_ssl = tcp_ssl_new(tcp, arg);
+  if(tcp_ssl == NULL){
+    return -1;
+  }
+
+  mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
+  int ret;
+  if( ( ret = mbedtls_ssl_setup( &tcp_ssl->ssl_ctx, conf ) ) != 0 ) {
+    TCP_SSL_DEBUG("failed: mbedtls_ssl_setup returned -0x%04x\n", -ret );
+      return handle_error(ret);
+  }
+
+  mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, (void*)tcp_ssl, tcp_ssl_send, tcp_ssl_recv, NULL);
+
+  // // Start handshake.
+  // int ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
+  // if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+  //   TCP_SSL_DEBUG("handshake error!\n");
+  //   return handle_error(ret);
+  // }
+
+  return ERR_OK;
+}
+
 // Open an SSL connection using a PSK (pre-shared-key) cipher suite.
 int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident, const char* pskey) {
   tcp_ssl_t* tcp_ssl;
@@ -494,7 +530,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
         }
 
         if(tcp_ssl->on_handshake)
-          tcp_ssl->on_handshake(tcp_ssl->arg, tcp_ssl->tcp, tcp_ssl);
+          tcp_ssl->on_handshake(tcp_ssl->on_handshake_arg, tcp_ssl->tcp, tcp_ssl);
       } else if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
         TCP_SSL_DEBUG("handshake error: %d\n", ret);
         handle_error(ret);
@@ -526,11 +562,27 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
 
   tcp_ssl->tcp_pbuf = NULL;
 
+  TCP_SSL_DEBUG("tcp_ssl_read: return total_bytes: %d\r\n", total_bytes >= 0 ? 0 : total_bytes);
   return total_bytes >= 0 ? 0 : total_bytes; // return error code
+}
+
+int tcp_ssl_handshake_step(struct tcp_pcb *tcp) {
+  TCP_SSL_DEBUG("tcp_ssl_handshake_step(%x)\n", tcp);
+  if(tcp == NULL) {
+    return -1;
+  }
+
+  tcp_ssl_t * tcp_ssl = tcp_ssl_get(tcp);
+  if(tcp_ssl == NULL){
+    return 0;
+  }
+
+  return ERR_OK;
 }
 
 int tcp_ssl_free(struct tcp_pcb *tcp) {
   TCP_SSL_DEBUG("tcp_ssl_free(%x)\n", tcp);
+  return -1;
   if(tcp == NULL) {
     return -1;
   }
@@ -593,10 +645,11 @@ void tcp_ssl_data(struct tcp_pcb *tcp, tcp_ssl_data_cb_t arg){
   }
 }
 
-void tcp_ssl_handshake(struct tcp_pcb *tcp, tcp_ssl_handshake_cb_t arg){
+void tcp_ssl_handshake(struct tcp_pcb *tcp, void *arg, tcp_ssl_handshake_cb_t ssl_handshake_cb){
   tcp_ssl_t * item = tcp_ssl_get(tcp);
   if(item) {
-    item->on_handshake = arg;
+    item->on_handshake = ssl_handshake_cb;
+    item->on_handshake_arg = arg;
   }
 }
 

@@ -58,8 +58,12 @@ typedef std::function<void(void*, AsyncClient*, uint32_t time)> AcTimeoutHandler
 struct tcp_pcb;
 struct ip_addr;
 
+class AsyncServer;
+
 class AsyncClient {
   public:
+  friend class AsyncServer;
+
     AsyncClient(tcp_pcb* pcb = 0);
     ~AsyncClient();
 
@@ -236,9 +240,8 @@ class AsyncServer {
     ~AsyncServer();
     void onClient(AcConnectHandler cb, void* arg);
 #if ASYNC_TCP_SSL_ENABLED
-    // Dummy, so it compiles with ESP Async WebServer library enabled.
     void onSslFileRequest(AcSSlFileHandler cb, void* arg) {};
-    void beginSecure(const char *cert, const char *private_key_file, const char *password) {};
+    void beginSecure(const char *cert, const char *private_key_file, const char *password);
 #endif
     void begin();
     void end();
@@ -249,6 +252,9 @@ class AsyncServer {
     //Do not use any of the functions below!
     static int8_t _s_accept(void *arg, tcp_pcb* newpcb, int8_t err);
     static int8_t _s_accepted(void *arg, AsyncClient* client);
+#if ASYNC_TCP_SSL_ENABLED
+    static void _s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl);
+#endif // ASYNC_TCP_SSL_ENABLED
 
   protected:
     uint16_t _port;
@@ -257,9 +263,20 @@ class AsyncServer {
     tcp_pcb* _pcb;
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;
+#if ASYNC_TCP_SSL_ENABLED
+    bool _pcb_secure;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_net_context listen_fd, client_fd;
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt srvcert;
+    mbedtls_pk_context pkey;
+#endif
 
     int8_t _accept(tcp_pcb* newpcb, int8_t err);
     int8_t _accepted(AsyncClient* client);
+    void _handshake(AsyncClient* client);
 };
 
 
