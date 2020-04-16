@@ -42,7 +42,7 @@ int tcp_ssl_free(struct tcp_pcb *tcp);
 bool tcp_ssl_has(struct tcp_pcb *tcp);
 void tcp_ssl_arg(struct tcp_pcb *tcp, void * arg);
 void tcp_ssl_data(struct tcp_pcb *tcp, tcp_ssl_data_cb_t arg);
-void tcp_ssl_handshake(struct tcp_pcb *tcp, void *arg, tcp_ssl_handshake_cb_t ssl_handshake_cb);
+void tcp_ssl_handshake(struct tcp_pcb *tcp, tcp_ssl_handshake_cb_t ssl_handshake_cb);
 void tcp_ssl_err(struct tcp_pcb *tcp, tcp_ssl_error_cb_t arg);
 
 #ifdef __cplusplus

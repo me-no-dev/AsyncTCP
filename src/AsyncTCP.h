@@ -64,7 +64,11 @@ class AsyncClient {
   public:
   friend class AsyncServer;
 
+#if ASYNC_TCP_SSL_ENABLED
+    AsyncClient(tcp_pcb* pcb = 0, tcp_pcb* server_pcb = 0);
+#else
     AsyncClient(tcp_pcb* pcb = 0);
+#endif
     ~AsyncClient();
 
     AsyncClient & operator=(const AsyncClient &other);
@@ -252,9 +256,6 @@ class AsyncServer {
     //Do not use any of the functions below!
     static int8_t _s_accept(void *arg, tcp_pcb* newpcb, int8_t err);
     static int8_t _s_accepted(void *arg, AsyncClient* client);
-#if ASYNC_TCP_SSL_ENABLED
-    static void _s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl);
-#endif // ASYNC_TCP_SSL_ENABLED
 
   protected:
     uint16_t _port;
@@ -269,7 +270,6 @@ class AsyncServer {
 
     int8_t _accept(tcp_pcb* newpcb, int8_t err);
     int8_t _accepted(AsyncClient* client);
-    void _handshake(AsyncClient* client);
 };
 
 

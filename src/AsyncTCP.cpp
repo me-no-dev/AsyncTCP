@@ -580,8 +580,11 @@ extern "C" {
 /*
   Async TCP Client
  */
-
-AsyncClient::AsyncClient(tcp_pcb* pcb)
+#if ASYNC_TCP_SSL_ENABLED
+AsyncClient::AsyncClient(tcp_pcb* pcb, tcp_pcb* server_pcb)
+#else
+AsyncClient::AsyncClient(tcp_pcb* pcb):
+#endif
 : _connect_cb(0)
 , _connect_cb_arg(0)
 , _discard_cb(0)
@@ -628,6 +631,20 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
         tcp_sent(_pcb, &_tcp_sent);
         tcp_err(_pcb, &_tcp_error);
         tcp_poll(_pcb, &_tcp_poll, 1);
+#if ASYNC_TCP_SSL_ENABLED
+        if(server_pcb){
+            if(tcp_ssl_new_server_client(_pcb, this, server_pcb) < 0){
+                _close();
+                return;
+            }
+            tcp_ssl_data(_pcb, &_s_data);
+            tcp_ssl_handshake(_pcb, &_s_handshake);
+            tcp_ssl_err(_pcb, &_s_ssl_error);
+
+            _pcb_secure = true;
+            _handshake_done = false;
+        }
+#endif
     }
 }
 
@@ -662,7 +679,7 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other){
             _handshake_done = false;
             tcp_ssl_arg(_pcb, this);
             tcp_ssl_data(_pcb, &_s_data);
-            tcp_ssl_handshake(_pcb, this, &_s_handshake);
+            tcp_ssl_handshake(_pcb,  &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
         } else {
             _pcb_secure = false;
@@ -924,7 +941,7 @@ void AsyncClient::ackPacket(struct pbuf * pb){
  * */
 
 int8_t AsyncClient::_close(){
-    //ets_printf("X: 0x%08x\n", (uint32_t)this);
+    log_d("X: 0x%08x", (uint32_t)this);
     int8_t err = ERR_OK;
     if(_pcb) {
         //log_i("");
@@ -1001,7 +1018,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
             }
 
             tcp_ssl_data(_pcb, &_s_data);
-            tcp_ssl_handshake(_pcb, this, &_s_handshake);
+            tcp_ssl_handshake(_pcb, &_s_handshake);
             tcp_ssl_err(_pcb, &_s_ssl_error);
         }
 #endif // ASYNC_TCP_SSL_ENABLED
@@ -1549,16 +1566,15 @@ void AsyncServer::end(){
 
 //runs on LwIP thread
 int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
-    log_d("pcb 0x%08x", _pcb);
+    log_d("pcb 0x%08x", pcb);
     //ets_printf("+A: 0x%08x\n", pcb);
     if(_connect_cb){
         log_d("Create AsyncClient");
-        AsyncClient *c = new AsyncClient(pcb);
-        tcp_ssl_new_server_client(pcb, c, _pcb);
+        // if (tcp_ssl_has(pcb)) tcp_ssl_free(pcb);
+        if (tcp_ssl_has(pcb)) return ERR_OK;
+        AsyncClient *c = new AsyncClient(pcb, _pcb);
         if (c) {
             c->setNoDelay(_noDelay);
-            c->_pcb_secure = true;
-            c->_handshake_done = false;
             return _tcp_accept(this, c);
         } else if (c) {
             delete c;
@@ -1571,19 +1587,11 @@ int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
     return ERR_OK;
 }
 
-struct BlaBla {
-    AsyncClient* cllient;
-    AsyncServer* server;
-};
-
 int8_t AsyncServer::_accepted(AsyncClient* client){
     if (_secure) {
-        BlaBla *b = new BlaBla {
-            client, this
-        };
-        tcp_ssl_data(client->pcb(), &AsyncClient::_s_data);
-        tcp_ssl_err(client->pcb(), &AsyncClient::_s_ssl_error);
-        tcp_ssl_handshake(client->pcb(), b, &_s_handshake);
+        client->onConnect([this](void * arg, AsyncClient *c) {
+            _connect_cb(_connect_cb_arg, c);
+        }, this);
     } else if(_connect_cb){
         _connect_cb(_connect_cb_arg, client);
     }
@@ -1605,26 +1613,12 @@ uint8_t AsyncServer::status(){
     return _pcb->state;
 }
 
-void AsyncServer::_handshake(AsyncClient* client){
-    log_d("handshake completed");
-    client->_handshake_done = true;
-    if(_connect_cb){
-        _connect_cb(_connect_cb_arg, client);
-    }
-}
-
 int8_t AsyncServer::_s_accept(void * arg, tcp_pcb * pcb, int8_t err){
     return reinterpret_cast<AsyncServer*>(arg)->_accept(pcb, err);
 }
 
 int8_t AsyncServer::_s_accepted(void *arg, AsyncClient* client){
     return reinterpret_cast<AsyncServer*>(arg)->_accepted(client);
-}
-
-void AsyncServer::_s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pcb* ssl){
-    BlaBla *b = reinterpret_cast<BlaBla*>(arg);
-    b->server->_handshake(b->cllient);
-    delete b;
 }
 
 #if ASYNC_TCP_SSL_ENABLED

@@ -77,7 +77,6 @@ struct tcp_ssl_pcb {
   void* arg;
   tcp_ssl_data_cb_t on_data;
   tcp_ssl_handshake_cb_t on_handshake;
-  void* on_handshake_arg;
   tcp_ssl_error_cb_t on_error;
   size_t last_wr;
   struct pbuf *tcp_pbuf;
@@ -642,7 +641,7 @@ int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p) {
         }
 
         if(tcp_ssl->on_handshake)
-          tcp_ssl->on_handshake(tcp_ssl->on_handshake_arg, tcp_ssl->tcp, tcp_ssl);
+          tcp_ssl->on_handshake(tcp_ssl->arg, tcp_ssl->tcp, tcp_ssl);
       } else if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
         TCP_SSL_DEBUG("handshake error: %d\n", ret);
         handle_error(ret);
@@ -760,11 +759,10 @@ void tcp_ssl_data(struct tcp_pcb *tcp, tcp_ssl_data_cb_t arg){
   }
 }
 
-void tcp_ssl_handshake(struct tcp_pcb *tcp, void *arg, tcp_ssl_handshake_cb_t ssl_handshake_cb){
+void tcp_ssl_handshake(struct tcp_pcb *tcp, tcp_ssl_handshake_cb_t ssl_handshake_cb){
   tcp_ssl_t * item = tcp_ssl_get(tcp);
   if(item) {
     item->on_handshake = ssl_handshake_cb;
-    item->on_handshake_arg = arg;
   }
 }
 
