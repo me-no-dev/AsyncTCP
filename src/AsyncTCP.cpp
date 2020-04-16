@@ -583,7 +583,7 @@ extern "C" {
 #if ASYNC_TCP_SSL_ENABLED
 AsyncClient::AsyncClient(tcp_pcb* pcb, tcp_pcb* server_pcb)
 #else
-AsyncClient::AsyncClient(tcp_pcb* pcb):
+AsyncClient::AsyncClient(tcp_pcb* pcb)
 #endif
 : _connect_cb(0)
 , _connect_cb_arg(0)
@@ -1571,8 +1571,12 @@ int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
     if(_connect_cb){
         log_d("Create AsyncClient");
         // if (tcp_ssl_has(pcb)) tcp_ssl_free(pcb);
-        if (tcp_ssl_has(pcb)) return ERR_OK;
+        // if (tcp_ssl_has(pcb)) return ERR_OK;
+#if ASYNC_TCP_SSL_ENABLED
         AsyncClient *c = new AsyncClient(pcb, _pcb);
+#else
+        AsyncClient *c = new AsyncClient(pcb);
+#endif
         if (c) {
             c->setNoDelay(_noDelay);
             return _tcp_accept(this, c);
@@ -1588,11 +1592,14 @@ int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
 }
 
 int8_t AsyncServer::_accepted(AsyncClient* client){
+#if ASYNC_TCP_SSL_ENABLED
     if (_secure) {
         client->onConnect([this](void * arg, AsyncClient *c) {
             _connect_cb(_connect_cb_arg, c);
         }, this);
-    } else if(_connect_cb){
+    } else
+#endif 
+    if(_connect_cb){
         _connect_cb(_connect_cb_arg, client);
     }
     return ERR_OK;
