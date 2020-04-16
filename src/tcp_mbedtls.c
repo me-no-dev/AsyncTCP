@@ -63,10 +63,11 @@ struct tcp_ssl_pcb {
   mbedtls_ssl_context ssl_ctx;
   bool has_ssl_conf;
   mbedtls_ssl_config ssl_conf;
-  mbedtls_x509_crt ca_cert;
   bool has_ca_cert;
-  mbedtls_x509_crt client_cert;
+  mbedtls_x509_crt ca_cert;
   bool has_client_cert;
+  mbedtls_x509_crt client_cert;
+  bool has_client_key;
   mbedtls_pk_context client_key;
   bool has_drbg_ctx;
   mbedtls_ctr_drbg_context drbg_ctx;
@@ -194,6 +195,7 @@ tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp, void* arg) {
   new_item->next = NULL;
   new_item->has_ca_cert = false;
   new_item->has_client_cert = false;
+  new_item->has_client_key = false;
   new_item->has_entropy_ctx = false;
   new_item->has_ssl_conf = false;
   new_item->has_drbg_ctx = false;
@@ -253,6 +255,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
     mbedtls_x509_crt_init(&tcp_ssl->client_cert);
     mbedtls_pk_init(&tcp_ssl->client_key);
     tcp_ssl->has_client_cert = true;
+    tcp_ssl->has_client_key = true;
   }
 
   mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func,
@@ -361,7 +364,8 @@ int tcp_ssl_new_server(struct tcp_pcb *tcp, void *arg, const char *cert, const s
 
   tcp_ssl->has_entropy_ctx = true;
   tcp_ssl->has_ssl_conf = true;
-  tcp_ssl->has_client_cert = true;
+  tcp_ssl->has_ca_cert = true;
+  tcp_ssl->has_client_key = true;
   tcp_ssl->has_drbg_ctx = true;
 
   /*
@@ -734,6 +738,8 @@ int tcp_ssl_free(struct tcp_pcb *tcp) {
   }
   if (item->has_client_cert) {
     mbedtls_x509_crt_free(&item->client_cert);
+  }
+  if (item->has_client_key) {
     mbedtls_pk_free(&item->client_key);
   }
   free(item);
