@@ -32,7 +32,8 @@ typedef void (* tcp_ssl_error_cb_t)(void *arg, struct tcp_pcb *tcp, int8_t error
 uint8_t tcp_ssl_has_client();
 int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, const char* root_ca, const size_t root_ca_len,
                        const char* cli_cert, const size_t cli_cert_len, const char* cli_key, const size_t cli_key_len);
-int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, mbedtls_ssl_context *ssl, const mbedtls_ssl_config *conf);
+int tcp_ssl_new_server(struct tcp_pcb *tcp, void *arg, const char *cert, const size_t cert_len, const char *private_key, const size_t private_key_len, const char *password);
+int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, struct tcp_pcb *server_tcp);
 int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident, const char* psk);
 int tcp_ssl_write(struct tcp_pcb *tcp, uint8_t *data, size_t len);
 int tcp_ssl_read(struct tcp_pcb *tcp, struct pbuf *p);

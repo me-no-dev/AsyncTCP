@@ -1465,7 +1465,7 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 , _connect_cb(0)
 , _connect_cb_arg(0)
 #if ASYNC_TCP_SSL_ENABLED
-, _pcb_secure(false)
+, _secure(false)
 #endif // ASYNC_TCP_SSL_ENABLED
 {}
 
@@ -1477,7 +1477,7 @@ AsyncServer::AsyncServer(uint16_t port)
 , _connect_cb(0)
 , _connect_cb_arg(0)
 #if ASYNC_TCP_SSL_ENABLED
-, _pcb_secure(false)
+, _secure(false)
 #endif // ASYNC_TCP_SSL_ENABLED
 {}
 
@@ -1494,6 +1494,9 @@ void AsyncServer::begin(){
     if(_pcb) {
         return;
     }
+#if ASYNC_TCP_SSL_ENABLED
+    _secure = false;
+#endif // ASYNC_TCP_SSL_ENABLED
 
     if(!_start_async_task()){
         log_e("failed to start task");
@@ -1523,12 +1526,18 @@ void AsyncServer::begin(){
         log_e("listen_pcb == NULL");
         return;
     }
+    log_d("pcb 0x%08x", _pcb);
     tcp_arg(_pcb, (void*) this);
     tcp_accept(_pcb, &_s_accept);
 }
 
 void AsyncServer::end(){
     if(_pcb){
+#if ASYNC_TCP_SSL_ENABLED
+        if(_secure){
+            tcp_ssl_free(_pcb);
+        }
+#endif // ASYNC_TCP_SSL_ENABLED
         tcp_arg(_pcb, NULL);
         tcp_accept(_pcb, NULL);
         if(tcp_close(_pcb) != ERR_OK){
@@ -1540,11 +1549,12 @@ void AsyncServer::end(){
 
 //runs on LwIP thread
 int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
+    log_d("pcb 0x%08x", _pcb);
     //ets_printf("+A: 0x%08x\n", pcb);
     if(_connect_cb){
         log_d("Create AsyncClient");
         AsyncClient *c = new AsyncClient(pcb);
-        tcp_ssl_new_server_client(pcb, c, &ssl, &conf);
+        tcp_ssl_new_server_client(pcb, c, _pcb);
         if (c) {
             c->setNoDelay(_noDelay);
             c->_pcb_secure = true;
@@ -1567,7 +1577,7 @@ struct BlaBla {
 };
 
 int8_t AsyncServer::_accepted(AsyncClient* client){
-    if (_pcb_secure) {
+    if (_secure) {
         BlaBla *b = new BlaBla {
             client, this
         };
@@ -1617,257 +1627,48 @@ void AsyncServer::_s_handshake(void *arg, struct tcp_pcb *tcp, struct tcp_ssl_pc
     delete b;
 }
 
-static int handle_ssl_error(int err) {
-    if(err == -30848){
-        return err;
-    }
-#ifdef MBEDTLS_ERROR_C
-    char error_buf[100];
-    mbedtls_strerror(err, error_buf, 100);
-    log_e("%s\n", error_buf);
-#endif
-    log_e("MbedTLS message code: %d\n", err);
-    return err;
-}
-
-#define HTTP_RESPONSE \
-    "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n" \
-    "<h2>mbed TLS Test Server</h2>\r\n" \
-    "<p>Successful connection using: %s</p>\r\n"
-
+#if ASYNC_TCP_SSL_ENABLED
 void AsyncServer::beginSecure(const char *cert, const char *private_key_file, const char *password) {
-    _pcb_secure = true;
+    if(_pcb) {
+        return;
+    }
+    _secure = true;
 
-    mbedtls_net_init( &listen_fd );
-    mbedtls_net_init( &client_fd );
-    mbedtls_ssl_init( &ssl );
-    mbedtls_ssl_config_init( &conf );
-    mbedtls_x509_crt_init( &srvcert );
-    mbedtls_pk_init( &pkey );
-    mbedtls_entropy_init( &entropy );
-    mbedtls_ctr_drbg_init( &ctr_drbg );
-
-    /*
-     * 1. Load the certificates and private RSA key
-     */
-    log_d( "Loading the server cert. and key..." );
-
-    /*
-     * This demonstration program uses embedded test certificates.
-     * Instead, you may want to use mbedtls_x509_crt_parse_file() to read the
-     * server and CA certificates, as well as mbedtls_pk_parse_keyfile().
-     */
-    const char* mbedtls_test_srv_crt = cert;
-    size_t mbedtls_test_srv_crt_len = strlen(cert) + 1;
-    int ret, len;
-    ret = mbedtls_x509_crt_parse( &srvcert, (const unsigned char *) mbedtls_test_srv_crt, mbedtls_test_srv_crt_len );
-
-    if( ret != 0 )
-    {
-        log_e( " failed\n  !  mbedtls_x509_crt_parse returned %d", ret );
-        handle_ssl_error(ret);
-        end(); return; // TODO: clear stugg
+    if(!_start_async_task()){
+        log_e("failed to start task");
+        return;
+    }
+    int8_t err;
+    _pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+    if (!_pcb){
+        log_e("_pcb == NULL");
+        return;
     }
 
-    const char* mbedtls_test_srv_key = private_key_file;
-    size_t mbedtls_test_srv_key_len = strlen(private_key_file) + 1;
+    ip_addr_t local_addr;
+    local_addr.type = IPADDR_TYPE_V4;
+    local_addr.u_addr.ip4.addr = (uint32_t) _addr;
+    err = _tcp_bind(_pcb, &local_addr, _port);
 
-    ret =  mbedtls_pk_parse_key( &pkey, (const unsigned char *) mbedtls_test_srv_key,
-                         mbedtls_test_srv_key_len, NULL, 0 );
-    if( ret != 0 )
-    {
-        log_e( " failed\n  !  mbedtls_pk_parse_key returned %d", ret );
-        handle_ssl_error(ret);
-        end(); return; // TODO: clear stugg
-    }
-    log_d("ok");
-
-    /*
-     * 3. Seed the RNG
-     */
-    log_d( "  . Seeding the random number generator..." );
-    const char *pers = "dtls_server";
-
-    if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy,
-                               (const unsigned char *) pers,
-                               strlen( pers ) ) ) != 0 )
-    {
-        log_d( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret );
-        end(); return; // TODO: clear stugg
-    }
-    log_d("ok");
-
-    /*
-     * 4. Setup stuff
-     */
-    log_d( "  . Setting up the SSL data..." );
-
-    if( ( ret = mbedtls_ssl_config_defaults( &conf,
-                    MBEDTLS_SSL_IS_SERVER,
-                    MBEDTLS_SSL_TRANSPORT_STREAM,
-                    MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
-    {
-        log_d( " failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret );
-        end(); return; // TODO: clear stugg
+    if (err != ERR_OK) {
+        _tcp_close(_pcb, -1);
+        log_e("bind error: %d", err);
+        return;
     }
 
-    mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
-
-
-    mbedtls_ssl_conf_ca_chain( &conf, srvcert.next, NULL );
-   if( ( ret = mbedtls_ssl_conf_own_cert( &conf, &srvcert, &pkey ) ) != 0 )
-    {
-        log_d( " failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n", ret );
-        end(); return; // TODO: clear stugg
+    static uint8_t backlog = 5;
+    _pcb = _tcp_listen_with_backlog(_pcb, backlog);
+    if (!_pcb) {
+        log_e("listen_pcb == NULL");
+        return;
     }
-
-    if( ( ret = mbedtls_ssl_setup( &ssl, &conf ) ) != 0 )
-    {
-        log_d( " failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret );
-        end(); return; // TODO: clear stugg
+    log_d("pcb 0x%08x", _pcb);
+    if (tcp_ssl_new_server(_pcb, this, cert, strlen(cert) + 1, private_key_file, strlen(private_key_file) + 1, password) == 0) {
+        log_d("start accepting clients");
+        tcp_arg(_pcb, (void*) this);
+        tcp_accept(_pcb, &_s_accept);
+    } else {
+        end();
     }
-
-    log_d( " ok\n" );
-
-    begin();
-    return;
-/********************************************************?
-
-        /*
-     * 2. Setup the "listening" TCP socket
-     */
-    log_d( "  . Bind on tcp/*/443 ..." );
-    if( ( ret = mbedtls_net_bind( &listen_fd, NULL, "443", MBEDTLS_NET_PROTO_TCP ) ) != 0 )
-    {
-        printf( " failed\n  ! mbedtls_net_bind returned %d\n\n", ret );
-        handle_ssl_error(ret);
-        end(); return; // TODO: clear stugg
-    }
-
-    log_d("ok");
-reset:
-    mbedtls_net_free( &client_fd );
-    mbedtls_ssl_session_reset( &ssl );
-
-    /*
-     * 3. Wait until a client connects
-     */
-    log_d( "  . Waiting for a remote connection ..." );    
-
-    if( ( ret = mbedtls_net_accept( &listen_fd, &client_fd, NULL, 0, NULL ) ) != 0 )
-    {
-        log_d( " failed\n  ! mbedtls_net_accept returned %d\n\n", ret );
-        end(); return; // TODO: clear stugg
-    }
-
-    mbedtls_ssl_set_bio( &ssl, &client_fd,
-                         mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout );
-
-    log_d( " ok\n" );
-
-    /*
-     * 5. Handshake
-     */
-    log_d( "  . Performing the SSL/TLS handshake..." );
-
-    while( ( ret = mbedtls_ssl_handshake( &ssl ) ) != 0 )
-    {
-        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-        {
-            log_d( " failed\n  ! mbedtls_ssl_handshake returned %d\n\n", ret );
-            goto reset;
-            // end(); return; // TODO: clear stugg
-        }
-    }
-
-    log_d( " ok\n" );
-
-    /*
-     * 6. Read the HTTP Request
-     */
-    log_d( "  < Read from client:" );
-    unsigned char buf[1024];
-    do
-    {
-        len = sizeof( buf ) - 1;
-        memset( buf, 0, sizeof( buf ) );
-        ret = mbedtls_ssl_read( &ssl, buf, len );
-
-        if( ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE )
-            continue;
-
-        if( ret <= 0 )
-        {
-            switch( ret )
-            {
-                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-                    log_d( " connection was closed gracefully\n" );
-                    break;
-
-                case MBEDTLS_ERR_NET_CONN_RESET:
-                    log_d( " connection was reset by peer\n" );
-                    break;
-
-                default:
-                    log_d( " mbedtls_ssl_read returned -0x%x\n", -ret );
-                    break;
-            }
-
-            break;
-        }
-
-        len = ret;
-        log_d( " %d bytes read\n\n%s", len, (char *) buf );
-
-        if( ret > 0 )
-            break;
-    }
-    while( 1 );
-
-
-
-
-    /*
-     * 7. Write the 200 Response
-     */
-    log_d( "  > Write to client:" );
-
-    len = sprintf( (char *) buf, HTTP_RESPONSE,
-                   mbedtls_ssl_get_ciphersuite( &ssl ) );
-
-    while( ( ret = mbedtls_ssl_write( &ssl, buf, len ) ) <= 0 )
-    {
-        if( ret == MBEDTLS_ERR_NET_CONN_RESET )
-        {
-            log_d( " failed\n  ! peer closed the connection\n\n" );
-            goto reset;
-        }
-
-        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-        {
-            log_d( " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret );
-            end(); return; // TODO: clear stugg
-        }
-    }
-
-    len = ret;
-    log_d( " %d bytes written\n\n%s\n", len, (char *) buf );
-
-    log_d( "  . Closing the connection..." );
-
-    while( ( ret = mbedtls_ssl_close_notify( &ssl ) ) < 0 )
-    {
-        if( ret != MBEDTLS_ERR_SSL_WANT_READ &&
-            ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-        {
-            log_d( " failed\n  ! mbedtls_ssl_close_notify returned %d\n\n", ret );
-            goto reset;
-        }
-    }
-
-    log_d( " ok\n" );
-
-    ret = 0;
-    goto reset;
-
 }
+#endif // ASYNC_TCP_SSL_ENABLED

@@ -264,14 +264,7 @@ class AsyncServer {
     AcConnectHandler _connect_cb;
     void* _connect_cb_arg;
 #if ASYNC_TCP_SSL_ENABLED
-    bool _pcb_secure;
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_net_context listen_fd, client_fd;
-    mbedtls_ssl_context ssl;
-    mbedtls_ssl_config conf;
-    mbedtls_x509_crt srvcert;
-    mbedtls_pk_context pkey;
+    bool _secure;
 #endif
 
     int8_t _accept(tcp_pcb* newpcb, int8_t err);

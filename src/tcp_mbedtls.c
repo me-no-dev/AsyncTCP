@@ -10,7 +10,7 @@
 extern esp_err_t _tcp_output4ssl(struct tcp_pcb * pcb, void* client);
 extern esp_err_t _tcp_write4ssl(struct tcp_pcb * pcb, const char* data, size_t size, uint8_t apiflags, void* client);
 
-#if 0
+#if 1
 #define TCP_SSL_DEBUG(...) do { ets_printf("T %s- ", pcTaskGetTaskName(xTaskGetCurrentTaskHandle())); ets_printf(__VA_ARGS__); } while(0)
 #else
 #define TCP_SSL_DEBUG(...)
@@ -327,7 +327,7 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   return ERR_OK;
 }
 
-int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, mbedtls_ssl_context *ssl, const mbedtls_ssl_config *conf) {
+int tcp_ssl_new_server(struct tcp_pcb *tcp, void *arg, const char *cert, const size_t cert_len, const char *private_key, const size_t private_key_len, const char *password) {
   tcp_ssl_t* tcp_ssl;
 
   if(tcp == NULL) {
@@ -343,21 +343,115 @@ int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, mbedtls_ssl_contex
     return -1;
   }
 
-  mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
   int ret;
-  if( ( ret = mbedtls_ssl_setup( &tcp_ssl->ssl_ctx, conf ) ) != 0 ) {
-    TCP_SSL_DEBUG("failed: mbedtls_ssl_setup returned -0x%04x\n", -ret );
+  mbedtls_ssl_init( &tcp_ssl->ssl_ctx );
+  mbedtls_ssl_config_init( &tcp_ssl->ssl_conf );
+  mbedtls_x509_crt_init( &tcp_ssl->ca_cert );
+  mbedtls_pk_init( &tcp_ssl->client_key );
+  mbedtls_entropy_init( &tcp_ssl->entropy_ctx );
+  mbedtls_ctr_drbg_init( &tcp_ssl->drbg_ctx );
+
+  /*
+    * 1. Load the certificates and private RSA key
+    */
+  TCP_SSL_DEBUG("Loading the server cert\n");
+  ret = mbedtls_x509_crt_parse(&tcp_ssl->ca_cert, (const unsigned char *) cert, cert_len);
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed loading server cert, returned %d\n", ret);
+      tcp_ssl_free(tcp);
       return handle_error(ret);
   }
 
-  mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, (void*)tcp_ssl, tcp_ssl_send, tcp_ssl_recv, NULL);
+  TCP_SSL_DEBUG("Loading the server key\n");
+  ret = mbedtls_pk_parse_key(&tcp_ssl->client_key, (const unsigned char *) private_key, private_key_len, NULL, 0);
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed loading server private key, returned %d\n", ret); 
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+  }
 
-  // // Start handshake.
-  // int ret = mbedtls_ssl_handshake(&tcp_ssl->ssl_ctx);
-  // if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-  //   TCP_SSL_DEBUG("handshake error!\n");
-  //   return handle_error(ret);
-  // }
+  /*
+    * 3. Seed the RNG
+    */
+  TCP_SSL_DEBUG("Seeding the random number generator...\n" );
+  ret = mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func, &tcp_ssl->entropy_ctx,
+                              (const unsigned char *) pers,
+                              strlen(pers));
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed seeding the random number generator, returned %d\n", ret);
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+  }
+
+  /*
+    * 4. Setup stuff
+    */
+  TCP_SSL_DEBUG("Setting up the SSL data...\n" );
+  ret = mbedtls_ssl_config_defaults( &tcp_ssl->ssl_conf,
+                  MBEDTLS_SSL_IS_SERVER,
+                  MBEDTLS_SSL_TRANSPORT_STREAM,
+                  MBEDTLS_SSL_PRESET_DEFAULT );
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed mbedtls_ssl_config_defaults returned %d\n", ret);
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+  }
+
+  mbedtls_ssl_conf_rng(&tcp_ssl->ssl_conf, mbedtls_ctr_drbg_random, &tcp_ssl->drbg_ctx);
+
+
+  mbedtls_ssl_conf_ca_chain(&tcp_ssl->ssl_conf, tcp_ssl->ca_cert.next, NULL);
+  ret = mbedtls_ssl_conf_own_cert(&tcp_ssl->ssl_conf, &tcp_ssl->ca_cert, &tcp_ssl->client_key);
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed mbedtls_ssl_conf_own_cert returned %d\n", ret);
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+  }
+
+  ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &tcp_ssl->ssl_conf);
+  if (ret != 0) {
+      TCP_SSL_DEBUG("failed mbedtls_ssl_setup returned %d\n", ret);
+      tcp_ssl_free(tcp);
+      return handle_error(ret);
+  }
+
+  TCP_SSL_DEBUG("tcp_ssl_new_server completed succesfully\n");
+
+  return ERR_OK;
+}
+
+int tcp_ssl_new_server_client(struct tcp_pcb *tcp, void *arg, struct tcp_pcb *server_tcp) {
+  tcp_ssl_t* tcp_ssl;
+  tcp_ssl_t* server_tcp_ssl;
+
+  if(tcp == NULL || server_tcp == NULL) {
+    return -1;
+  }
+
+  if(tcp_ssl_get(tcp) != NULL){
+    return -1;
+  }
+
+  server_tcp_ssl = tcp_ssl_get(server_tcp);
+  if (server_tcp_ssl == NULL) {
+    return -1;
+  }
+
+  tcp_ssl = tcp_ssl_new(tcp, arg);
+  if(tcp_ssl == NULL){
+    return -1;
+  }
+
+  int ret;
+
+  mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
+  ret = mbedtls_ssl_setup(&tcp_ssl->ssl_ctx, &server_tcp_ssl->ssl_conf);
+  if (ret != 0) {
+    TCP_SSL_DEBUG("failed: mbedtls_ssl_setup returned -0x%04x\n", -ret );
+    return handle_error(ret);
+  }
+
+  mbedtls_ssl_set_bio(&tcp_ssl->ssl_ctx, (void*)tcp_ssl, tcp_ssl_send, tcp_ssl_recv, NULL);
 
   return ERR_OK;
 }
