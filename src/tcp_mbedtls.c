@@ -61,13 +61,16 @@ struct tcp_ssl_pcb {
   struct tcp_pcb *tcp;
   int fd;
   mbedtls_ssl_context ssl_ctx;
+  bool has_ssl_conf;
   mbedtls_ssl_config ssl_conf;
   mbedtls_x509_crt ca_cert;
   bool has_ca_cert;
   mbedtls_x509_crt client_cert;
   bool has_client_cert;
   mbedtls_pk_context client_key;
+  bool has_drbg_ctx;
   mbedtls_ctr_drbg_context drbg_ctx;
+  bool has_entropy_ctx;
   mbedtls_entropy_context entropy_ctx;
   uint8_t type;
   // int handshake;
@@ -192,6 +195,9 @@ tcp_ssl_t * tcp_ssl_new(struct tcp_pcb *tcp, void* arg) {
   new_item->next = NULL;
   new_item->has_ca_cert = false;
   new_item->has_client_cert = false;
+  new_item->has_entropy_ctx = false;
+  new_item->has_ssl_conf = false;
+  new_item->has_drbg_ctx = false;
 
   if(tcp_ssl_array == NULL){
     tcp_ssl_array = new_item;
@@ -237,6 +243,9 @@ int tcp_ssl_new_client(struct tcp_pcb *tcp, void *arg, const char* hostname, con
   mbedtls_ctr_drbg_init(&tcp_ssl->drbg_ctx);
   mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
   mbedtls_ssl_config_init(&tcp_ssl->ssl_conf);
+  tcp_ssl->has_entropy_ctx = true;
+  tcp_ssl->has_drbg_ctx = true;
+  tcp_ssl->has_ssl_conf = true;
   if(root_ca != NULL) {
     mbedtls_x509_crt_init(&tcp_ssl->ca_cert);
     tcp_ssl->has_ca_cert = true;
@@ -350,6 +359,11 @@ int tcp_ssl_new_server(struct tcp_pcb *tcp, void *arg, const char *cert, const s
   mbedtls_pk_init( &tcp_ssl->client_key );
   mbedtls_entropy_init( &tcp_ssl->entropy_ctx );
   mbedtls_ctr_drbg_init( &tcp_ssl->drbg_ctx );
+
+  tcp_ssl->has_entropy_ctx = true;
+  tcp_ssl->has_ssl_conf = true;
+  tcp_ssl->has_client_cert = true;
+  tcp_ssl->has_drbg_ctx = true;
 
   /*
     * 1. Load the certificates and private RSA key
@@ -481,6 +495,10 @@ int tcp_ssl_new_psk_client(struct tcp_pcb *tcp, void *arg, const char* psk_ident
   mbedtls_ctr_drbg_init(&tcp_ssl->drbg_ctx);
   mbedtls_ssl_init(&tcp_ssl->ssl_ctx);
   mbedtls_ssl_config_init(&tcp_ssl->ssl_conf);
+
+  tcp_ssl->has_entropy_ctx = true;
+  tcp_ssl->has_ssl_conf = true;
+  tcp_ssl->has_drbg_ctx = true;
 
   mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func,
                         &tcp_ssl->entropy_ctx, (const uint8_t*)pers, sizeof(pers));
@@ -676,47 +694,50 @@ int tcp_ssl_handshake_step(struct tcp_pcb *tcp) {
 
 int tcp_ssl_free(struct tcp_pcb *tcp) {
   TCP_SSL_DEBUG("tcp_ssl_free(%x)\n", tcp);
-  return -1;
   if(tcp == NULL) {
     return -1;
   }
   tcp_ssl_t * item = tcp_ssl_array;
-  if(item->tcp == tcp){
-    tcp_ssl_array = tcp_ssl_array->next;
-    if(item->tcp_pbuf != NULL) {
-      pbuf_free(item->tcp_pbuf);
-    }
-    mbedtls_ssl_free(&item->ssl_ctx);
-    mbedtls_ssl_config_free(&item->ssl_conf);
-    mbedtls_ctr_drbg_free(&item->drbg_ctx);
-    mbedtls_entropy_free(&item->entropy_ctx);
-    if(item->has_ca_cert) {
-      mbedtls_x509_crt_free(&item->ca_cert);
-    }
-    if (item->has_client_cert) {
-      mbedtls_x509_crt_free(&item->client_cert);
-      mbedtls_pk_free(&item->client_key);
-    }
-    free(item);
-    return 0;
-  }
-
-  while(item->next && item->next->tcp != tcp)
-    item = item->next;
-
-  if(item->next == NULL){
+  if (item == NULL) {
     return ERR_TCP_SSL_INVALID_CLIENTFD_DATA;//item not found
   }
-  tcp_ssl_t * i = item->next;
-  item->next = i->next;
-  if(i->tcp_pbuf != NULL){
-    pbuf_free(i->tcp_pbuf);
+  
+  if (item->tcp == tcp) {
+    tcp_ssl_array = tcp_ssl_array->next;
+  } else {
+    while(item->next && item->next->tcp != tcp)
+      item = item->next;
+    
+    if(item->next == NULL || item->next->tcp != tcp){
+      return ERR_TCP_SSL_INVALID_CLIENTFD_DATA;//item not found
+    }
+
+    tcp_ssl_t * thisItem = item->next;
+    item->next = item->next->next;
+    item = thisItem;
   }
-  mbedtls_ssl_free(&i->ssl_ctx);
-  mbedtls_ssl_config_free(&i->ssl_conf);
-  mbedtls_ctr_drbg_free(&i->drbg_ctx);
-  mbedtls_entropy_free(&i->entropy_ctx);
-  free(i);
+
+  if(item->tcp_pbuf != NULL) {
+    pbuf_free(item->tcp_pbuf);
+  }
+  mbedtls_ssl_free(&item->ssl_ctx);
+  if(item->has_ssl_conf) {
+    mbedtls_ssl_config_free(&item->ssl_conf);
+  }
+  if(item->has_drbg_ctx) {
+    mbedtls_ctr_drbg_free(&item->drbg_ctx);
+  }
+  if(item->has_entropy_ctx) {
+    mbedtls_entropy_free(&item->entropy_ctx);
+  }
+  if(item->has_ca_cert) {
+    mbedtls_x509_crt_free(&item->ca_cert);
+  }
+  if (item->has_client_cert) {
+    mbedtls_x509_crt_free(&item->client_cert);
+    mbedtls_pk_free(&item->client_key);
+  }
+  free(item);
 
   return 0;
 }
