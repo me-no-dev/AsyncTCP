@@ -1580,8 +1580,6 @@ int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
         if (c) {
             c->setNoDelay(_noDelay);
             return _tcp_accept(this, c);
-        } else if (c) {
-            delete c;
         }
     }
     if(tcp_close(pcb) != ERR_OK){

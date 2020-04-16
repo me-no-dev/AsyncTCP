@@ -389,7 +389,7 @@ int tcp_ssl_new_server(struct tcp_pcb *tcp, void *arg, const char *cert, const s
   TCP_SSL_DEBUG("Seeding the random number generator...\n" );
   ret = mbedtls_ctr_drbg_seed(&tcp_ssl->drbg_ctx, mbedtls_entropy_func, &tcp_ssl->entropy_ctx,
                               (const unsigned char *) pers,
-                              strlen(pers));
+                              sizeof(pers));
   if (ret != 0) {
       TCP_SSL_DEBUG("failed seeding the random number generator, returned %d\n", ret);
       tcp_ssl_free(tcp);
