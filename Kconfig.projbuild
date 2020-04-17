@@ -27,4 +27,10 @@ config ASYNC_TCP_USE_WDT
     help
         Enable WDT for the AsyncTCP task, so it will trigger if a handler is locking the thread.
 
+config ASYNC_TCP_SSL_ENABLED
+    bool "Enable SSL for AsyncTCP client"
+    default "n"
+    help
+        Enables mbedTLS support for AsyncTCP clients.
+
 endmenu
