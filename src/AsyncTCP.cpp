@@ -1124,7 +1124,9 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             pbuf_free(pb);
             // handle errors
             if(err < 0){
-                if (err != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+                if (err == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+                    tcp_ssl_free(pcb);
+                } else {
                     log_e("_recv err: %d\n", err);
                     _close();
                 }
@@ -1568,10 +1570,7 @@ void AsyncServer::end(){
 int8_t AsyncServer::_accept(tcp_pcb* pcb, int8_t err){
     log_d("pcb 0x%08x", pcb);
     //ets_printf("+A: 0x%08x\n", pcb);
-    if(_connect_cb){
-        log_d("Create AsyncClient");
-        // if (tcp_ssl_has(pcb)) tcp_ssl_free(pcb);
-        // if (tcp_ssl_has(pcb)) return ERR_OK;
+    if(_connect_cb){ 
 #if ASYNC_TCP_SSL_ENABLED
         AsyncClient *c = new AsyncClient(pcb, _pcb);
 #else
