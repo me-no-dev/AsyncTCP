@@ -674,7 +674,7 @@ void AsyncClient::onPoll(AcConnectHandler cb, void* arg){
  * Main Public Methods
  * */
 
-bool AsyncClient::connect(IPAddress ip, uint16_t port){
+bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
     if (_pcb){
         log_w("already connected, state %d", _pcb->state);
         return false;
@@ -684,11 +684,7 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
         return false;
     }
 
-    ip_addr_t addr;
-    addr.type = IPADDR_TYPE_V4;
-    addr.u_addr.ip4.addr = ip;
-
-    tcp_pcb* pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+    tcp_pcb* pcb = tcp_new_ip_type(addr.type);
     if (!pcb){
         log_e("pcb == NULL");
         return false;
@@ -699,9 +695,24 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     tcp_recv(pcb, &_tcp_recv);
     tcp_sent(pcb, &_tcp_sent);
     tcp_poll(pcb, &_tcp_poll, 1);
-    //_tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
     _tcp_connect(pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
     return true;
+}
+
+bool AsyncClient::connect(IPAddress ip, uint16_t port){
+    ip_addr_t addr;
+    addr.type = IPADDR_TYPE_V4;
+    addr.u_addr.ip4.addr = ip;
+
+    return _connect(addr, port);
+}
+
+bool AsyncClient::connect(IPv6Address ip, uint16_t port){
+    ip_addr_t addr;
+    addr.type = IPADDR_TYPE_V6;
+    memcpy(addr.u_addr.ip6.addr, static_cast<const uint32_t*>(ip), sizeof(uint32_t) * 4);
+
+    return _connect(addr, port);
 }
 
 bool AsyncClient::connect(const char* host, uint16_t port){
@@ -714,6 +725,9 @@ bool AsyncClient::connect(const char* host, uint16_t port){
     
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
     if(err == ERR_OK) {
+        if(addr.type == IPADDR_TYPE_V6) {
+            return connect(IPv6Address(addr.u_addr.ip6.addr), port);
+        }
         return connect(IPAddress(addr.u_addr.ip4.addr), port);
     } else if(err == ERR_INPROGRESS) {
         _connect_port = port;
@@ -980,6 +994,8 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 void AsyncClient::_dns_found(struct ip_addr *ipaddr){
     if(ipaddr && ipaddr->u_addr.ip4.addr){
         connect(IPAddress(ipaddr->u_addr.ip4.addr), _connect_port);
+    } else if(ipaddr && ipaddr->u_addr.ip6.addr){
+        connect(IPv6Address(ipaddr->u_addr.ip6.addr), _connect_port);
     } else {
         if(_error_cb) {
             _error_cb(_error_cb_arg, this, -55);
@@ -1071,6 +1087,15 @@ uint32_t AsyncClient::getRemoteAddress() {
     return _pcb->remote_ip.u_addr.ip4.addr;
 }
 
+ip6_addr_t AsyncClient::getRemoteAddress6() {
+    if(!_pcb) {
+        ip6_addr_t nulladdr;
+        ip6_addr_set_zero(&nulladdr);
+        return nulladdr;
+    }
+    return _pcb->remote_ip.u_addr.ip6;
+}
+
 uint16_t AsyncClient::getRemotePort() {
     if(!_pcb) {
         return 0;
@@ -1085,6 +1110,15 @@ uint32_t AsyncClient::getLocalAddress() {
     return _pcb->local_ip.u_addr.ip4.addr;
 }
 
+ip6_addr_t AsyncClient::getLocalAddress6() {
+    if(!_pcb) {
+        ip6_addr_t nulladdr;
+        ip6_addr_set_zero(&nulladdr);
+        return nulladdr;
+    }
+    return _pcb->local_ip.u_addr.ip6;
+}
+
 uint16_t AsyncClient::getLocalPort() {
     if(!_pcb) {
         return 0;
@@ -1096,12 +1130,20 @@ IPAddress AsyncClient::remoteIP() {
     return IPAddress(getRemoteAddress());
 }
 
+IPv6Address AsyncClient::remoteIP6() {
+    return IPv6Address(getRemoteAddress6().addr);
+}
+
 uint16_t AsyncClient::remotePort() {
     return getRemotePort();
 }
 
 IPAddress AsyncClient::localIP() {
     return IPAddress(getLocalAddress());
+}
+
+IPv6Address AsyncClient::localIP6() {
+    return IPv6Address(getLocalAddress6().addr);
 }
 
 uint16_t AsyncClient::localPort() {
@@ -1236,7 +1278,18 @@ int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
 
 AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 : _port(port)
+, _bind4(true)
 , _addr(addr)
+, _noDelay(false)
+, _pcb(0)
+, _connect_cb(0)
+, _connect_cb_arg(0)
+{}
+
+AsyncServer::AsyncServer(IPv6Address addr, uint16_t port)
+: _port(port)
+, _bind6(true)
+, _addr6(addr)
 , _noDelay(false)
 , _pcb(0)
 , _connect_cb(0)
@@ -1245,7 +1298,10 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 
 AsyncServer::AsyncServer(uint16_t port)
 : _port(port)
+, _bind4(true)
+, _bind6(true)
 , _addr((uint32_t) IPADDR_ANY)
+, _addr6()
 , _noDelay(false)
 , _pcb(0)
 , _connect_cb(0)
@@ -1270,16 +1326,26 @@ void AsyncServer::begin(){
         log_e("failed to start task");
         return;
     }
-    int8_t err;
-    _pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+    int8_t err, bind_type;
+
+    if(_bind4 && _bind6) {
+        bind_type = IPADDR_TYPE_ANY;
+    } else if (_bind6) {
+        bind_type = IPADDR_TYPE_V6;
+    } else {
+        bind_type = IPADDR_TYPE_V4;
+    }
+
+    _pcb = tcp_new_ip_type(bind_type);
     if (!_pcb){
         log_e("_pcb == NULL");
         return;
     }
 
     ip_addr_t local_addr;
-    local_addr.type = IPADDR_TYPE_V4;
+    local_addr.type = bind_type;
     local_addr.u_addr.ip4.addr = (uint32_t) _addr;
+    memcpy(local_addr.u_addr.ip6.addr, static_cast<const uint32_t*>(_addr6), sizeof(uint32_t) * 4);
     err = _tcp_bind(_pcb, &local_addr, _port);
 
     if (err != ERR_OK) {
