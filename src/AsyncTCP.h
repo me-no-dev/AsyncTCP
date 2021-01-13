@@ -191,6 +191,7 @@ class AsyncServer {
     AsyncServer(uint16_t port);
     ~AsyncServer();
     void onClient(AcConnectHandler cb, void* arg);
+    void port(uint16_t port);
     void begin();
     void end();
     void setNoDelay(bool nodelay);
