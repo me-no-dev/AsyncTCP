@@ -575,7 +575,7 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 , _pb_cb_arg(0)
 , _timeout_cb(0)
 , _timeout_cb_arg(0)
-, _pcb_busy(false)
+, _pcb_busy(0)
 , _pcb_sent_at(0)
 , _ack_pcb(true)
 , _rx_last_packet(0)
@@ -783,13 +783,14 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
 }
 
 bool AsyncClient::send(){
-    int8_t err = ERR_OK;
-    err = _tcp_output(_pcb, _closed_slot);
-    if(err == ERR_OK){
-        _pcb_busy = true;
-        _pcb_sent_at = millis();
+    auto pcb_sent_at_backup = _pcb_sent_at;
+    _pcb_sent_at = millis();
+    _pcb_busy++;
+    if (_tcp_output(_pcb, _closed_slot) == ERR_OK) {
         return true;
     }
+    _pcb_sent_at = pcb_sent_at_backup;
+    _pcb_busy--;
     return false;
 }
 
@@ -869,7 +870,7 @@ int8_t AsyncClient::_connected(void* pcb, int8_t err){
     _pcb = reinterpret_cast<tcp_pcb*>(pcb);
     if(_pcb){
         _rx_last_packet = millis();
-        _pcb_busy = false;
+        _pcb_busy = 0;
 //        tcp_recv(_pcb, &_tcp_recv);
 //        tcp_sent(_pcb, &_tcp_sent);
 //        tcp_poll(_pcb, &_tcp_poll, 1);
@@ -932,7 +933,7 @@ int8_t AsyncClient::_fin(tcp_pcb* pcb, int8_t err) {
 int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
     _rx_last_packet = millis();
     //log_i("%u", len);
-    _pcb_busy = false;
+    _pcb_busy--;
     if(_sent_cb) {
         _sent_cb(_sent_cb_arg, this, len, (millis() - _pcb_sent_at));
     }
@@ -977,8 +978,8 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
     uint32_t now = millis();
 
     // ACK Timeout
-    if(_pcb_busy && _ack_timeout && (now - _pcb_sent_at) >= _ack_timeout){
-        _pcb_busy = false;
+    if(_pcb_busy > 0 && _ack_timeout && (now - _pcb_sent_at) >= _ack_timeout){
+        _pcb_busy = 0;
         log_w("ack timeout %d", pcb->state);
         if(_timeout_cb)
             _timeout_cb(_timeout_cb_arg, this, (now - _pcb_sent_at));
