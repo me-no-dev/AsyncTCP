@@ -975,7 +975,7 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 
     // ACK Timeout
     if(_ack_timeout){
-        uint32_t one_day = 86400000;
+        const uint32_t one_day = 86400000;
         bool last_tx_is_after_last_ack = (_rx_last_ack - _tx_last_packet + one_day) < one_day;
         if(last_tx_is_after_last_ack && (now - _tx_last_packet) >= _ack_timeout) {
             log_w("ack timeout %d", pcb->state);
