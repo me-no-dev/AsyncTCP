@@ -55,7 +55,7 @@ struct ip_addr;
 class AsyncClient {
   public:
     AsyncClient(tcp_pcb* pcb = 0);
-    ~AsyncClient();
+    virtual ~AsyncClient();
 
     AsyncClient & operator=(const AsyncClient &other);
     AsyncClient & operator+=(const AsyncClient &other);
@@ -73,13 +73,13 @@ class AsyncClient {
     bool free();
 
     bool canSend();//ack is not pending
-    size_t space();//space available in the TCP window
+    virtual size_t space(); //space available in the TCP window
     size_t add(const char* data, size_t size, uint8_t apiflags=ASYNC_WRITE_FLAG_COPY);//add for sending
     bool send();//send all data added with the method above
 
     //write equals add()+send()
-    size_t write(const char* data);
-    size_t write(const char* data, size_t size, uint8_t apiflags=ASYNC_WRITE_FLAG_COPY); //only when canSend() == true
+    virtual size_t write(const char* data);
+    virtual size_t write(const char* data, size_t size, uint8_t apiflags=ASYNC_WRITE_FLAG_COPY); //only when canSend() == true
 
     uint8_t state();
     bool connecting();
