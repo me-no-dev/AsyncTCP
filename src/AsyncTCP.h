@@ -99,6 +99,8 @@ class AsyncClient {
     void setNoDelay(bool nodelay);
     bool getNoDelay();
 
+    void setKeepAlive(uint32_t ms, uint8_t cnt);
+
     uint32_t getRemoteAddress();
     uint16_t getRemotePort();
     uint32_t getLocalAddress();
