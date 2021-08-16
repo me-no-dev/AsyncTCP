@@ -27,4 +27,10 @@ config ASYNC_TCP_USE_WDT
     help
         Enable WDT for the AsyncTCP task, so it will trigger if a handler is locking the thread.
 
+config ASYNC_TCP_EVENT_QUEUE_SIZE
+    int "Event queue size"
+    default 32
+    help
+        Set the event queue size. Increasing this value may fix WDT triggers with larger transfers.
+
 endmenu
