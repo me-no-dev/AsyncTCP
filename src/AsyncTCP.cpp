@@ -232,6 +232,9 @@ static bool _start_async_task(){
 
 static int8_t _tcp_clear_events(void * arg) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->event = LWIP_TCP_CLEAR;
     e->arg = arg;
     if (!_prepend_async_event(&e)) {
@@ -243,6 +246,9 @@ static int8_t _tcp_clear_events(void * arg) {
 static int8_t _tcp_connected(void * arg, tcp_pcb * pcb, int8_t err) {
     //ets_printf("+C: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->event = LWIP_TCP_CONNECTED;
     e->arg = arg;
     e->connected.pcb = pcb;
@@ -256,6 +262,9 @@ static int8_t _tcp_connected(void * arg, tcp_pcb * pcb, int8_t err) {
 static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
     //ets_printf("+P: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->event = LWIP_TCP_POLL;
     e->arg = arg;
     e->poll.pcb = pcb;
@@ -267,6 +276,9 @@ static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
 
 static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_t err) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->arg = arg;
     if(pb){
         //ets_printf("+R: 0x%08x\n", pcb);
@@ -291,6 +303,9 @@ static int8_t _tcp_recv(void * arg, struct tcp_pcb * pcb, struct pbuf *pb, int8_
 static int8_t _tcp_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
     //ets_printf("+S: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->event = LWIP_TCP_SENT;
     e->arg = arg;
     e->sent.pcb = pcb;
@@ -304,6 +319,9 @@ static int8_t _tcp_sent(void * arg, struct tcp_pcb * pcb, uint16_t len) {
 static void _tcp_error(void * arg, int8_t err) {
     //ets_printf("+E: 0x%08x\n", arg);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return /*ERR_MEM*/;
+    }
     e->event = LWIP_TCP_ERROR;
     e->arg = arg;
     e->error.err = err;
@@ -314,6 +332,9 @@ static void _tcp_error(void * arg, int8_t err) {
 
 static void _tcp_dns_found(const char * name, struct ip_addr * ipaddr, void * arg) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return /*ERR_MEM*/;
+    }
     //ets_printf("+DNS: name=%s ipaddr=0x%08x arg=%x\n", name, ipaddr, arg);
     e->event = LWIP_TCP_DNS;
     e->arg = arg;
@@ -331,6 +352,9 @@ static void _tcp_dns_found(const char * name, struct ip_addr * ipaddr, void * ar
 //Used to switch out from LwIP thread
 static int8_t _tcp_accept(void * arg, AsyncClient * client) {
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
+    if (e == NULL) {
+        return ERR_MEM;
+    }
     e->event = LWIP_TCP_ACCEPT;
     e->arg = arg;
     e->accept.client = client;
