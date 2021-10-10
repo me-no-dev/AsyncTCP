@@ -26,8 +26,9 @@
 #include "sdkconfig.h"
 #include <functional>
 extern "C" {
-    #include "freertos/semphr.h"
-    #include "lwip/pbuf.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "lwip/pbuf.h"
 }
 
 //If core is not defined, then we are running in Arduino or PIO
