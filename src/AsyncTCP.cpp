@@ -32,6 +32,8 @@ extern "C"{
 #include "esp_task_wdt.h"
 
 #define CONFIG_ASYNC_TCP_STACK 2*8192
+
+#define CONFIG_ASYNC_TCP_PRIORITY 10
 /*
  * TCP/IP Event Task
  * */
@@ -219,7 +221,7 @@ static bool _start_async_task(){
         return false;
     }
     if(!_async_service_task_handle){
-        xTaskCreateUniversal(_async_service_task, "async_tcp", CONFIG_ASYNC_TCP_STACK, NULL, 3, &_async_service_task_handle, CONFIG_ASYNC_TCP_RUNNING_CORE);
+        xTaskCreateUniversal(_async_service_task, "async_tcp", CONFIG_ASYNC_TCP_STACK, NULL, CONFIG_ASYNC_TCP_PRIORITY, &_async_service_task_handle, CONFIG_ASYNC_TCP_RUNNING_CORE);
         if(!_async_service_task_handle){
             return false;
         }
