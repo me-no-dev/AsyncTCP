@@ -587,7 +587,7 @@ AsyncClient::~AsyncClient(){
     _free_closed_slot();
 }
 
-/*_tcp_poll
+/*
  * Operators
  * */
 
@@ -690,7 +690,6 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     addr.type = IPADDR_TYPE_V4;
     addr.u_addr.ip4.addr = ip;
 
-    log_e("CREATING NEW PCB");
     _pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
     if (!_pcb){
         log_e("pcb == NULL");
@@ -924,7 +923,7 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
     _rx_last_packet = millis();
     //log_i("%u", len);
     _ack_last = millis();
-    _ack_pending-=len;
+    _ack_pending -= len;
     if(_sent_cb) {
         _sent_cb(_sent_cb_arg, this, len, (millis() - _pcb_sent_at));
     }
