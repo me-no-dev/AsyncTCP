@@ -93,6 +93,7 @@ class AsyncClient {
     uint32_t getRxTimeout();
     void setRxTimeout(uint32_t timeout);//no RX data timeout for the connection in seconds
 
+    uint32_t getPendingAck(); //
     uint32_t getAckTimeout();
     void setAckTimeout(uint32_t timeout);//no ACK timeout for the last sent packet in milliseconds
 
@@ -167,6 +168,8 @@ class AsyncClient {
     uint32_t _rx_last_packet;
     uint32_t _rx_since_timeout;
     uint32_t _ack_timeout;
+    uint32_t _ack_pending;
+    uint32_t _ack_last;
     uint16_t _connect_port;
 
     int8_t _close();

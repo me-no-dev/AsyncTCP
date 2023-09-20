@@ -561,6 +561,8 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 , _rx_last_packet(0)
 , _rx_since_timeout(0)
 , _ack_timeout(ASYNC_MAX_ACK_TIME)
+, _ack_pending(0)
+, _ack_last(0)
 , _connect_port(0)
 , prev(NULL)
 , next(NULL)
@@ -585,7 +587,7 @@ AsyncClient::~AsyncClient(){
     _free_closed_slot();
 }
 
-/*
+/*_tcp_poll
  * Operators
  * */
 
@@ -688,19 +690,20 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     addr.type = IPADDR_TYPE_V4;
     addr.u_addr.ip4.addr = ip;
 
-    tcp_pcb* pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
-    if (!pcb){
+    log_e("CREATING NEW PCB");
+    _pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+    if (!_pcb){
         log_e("pcb == NULL");
         return false;
     }
 
-    tcp_arg(pcb, this);
-    tcp_err(pcb, &_tcp_error);
-    tcp_recv(pcb, &_tcp_recv);
-    tcp_sent(pcb, &_tcp_sent);
-    tcp_poll(pcb, &_tcp_poll, 1);
+    tcp_arg(_pcb, this);
+    tcp_err(_pcb, &_tcp_error);
+    tcp_recv(_pcb, &_tcp_recv);
+    tcp_sent(_pcb, &_tcp_sent);
+    tcp_poll(_pcb, &_tcp_poll, 1);
     //_tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
-    _tcp_connect(pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
+    _tcp_connect(_pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
     return true;
 }
 
@@ -733,6 +736,7 @@ void AsyncClient::close(bool now){
 int8_t AsyncClient::abort(){
     if(_pcb) {
         _tcp_abort(_pcb, _closed_slot );
+        _ack_pending = 0;
         _pcb = NULL;
     }
     return ERR_ABRT;
@@ -759,6 +763,10 @@ size_t AsyncClient::add(const char* data, size_t size, uint8_t apiflags) {
     if(err != ERR_OK) {
         return 0;
     }
+    if(!_ack_pending){
+        _ack_last = millis(); //reset
+    }
+    _ack_pending += will_send;
     return will_send;
 }
 
@@ -766,7 +774,6 @@ bool AsyncClient::send(){
     int8_t err = ERR_OK;
     err = _tcp_output(_pcb, _closed_slot);
     if(err == ERR_OK){
-        _pcb_busy = true;
         _pcb_sent_at = millis();
         return true;
     }
@@ -810,6 +817,7 @@ int8_t AsyncClient::_close(){
         if(err != ERR_OK) {
             err = abort();
         }
+        _ack_pending = 0;
         _pcb = NULL;
         if(_discard_cb) {
             _discard_cb(_discard_cb_arg, this);
@@ -847,9 +855,10 @@ void AsyncClient::_free_closed_slot(){
 
 int8_t AsyncClient::_connected(void* pcb, int8_t err){
     _pcb = reinterpret_cast<tcp_pcb*>(pcb);
+    _ack_last = millis();
+    _ack_pending = 0;
     if(_pcb){
         _rx_last_packet = millis();
-        _pcb_busy = false;
 //        tcp_recv(_pcb, &_tcp_recv);
 //        tcp_sent(_pcb, &_tcp_sent);
 //        tcp_poll(_pcb, &_tcp_poll, 1);
@@ -869,6 +878,7 @@ void AsyncClient::_error(int8_t err) {
             tcp_err(_pcb, NULL);
             tcp_poll(_pcb, NULL, 0);
         }
+        _ack_pending = 0;
         _pcb = NULL;
     }
     if(_error_cb) {
@@ -896,6 +906,7 @@ int8_t AsyncClient::_lwip_fin(tcp_pcb* pcb, int8_t err) {
         tcp_abort(_pcb);
     }
     _free_closed_slot();
+    _ack_pending = 0;
     _pcb = NULL;
     return ERR_OK;
 }
@@ -912,7 +923,8 @@ int8_t AsyncClient::_fin(tcp_pcb* pcb, int8_t err) {
 int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
     _rx_last_packet = millis();
     //log_i("%u", len);
-    _pcb_busy = false;
+    _ack_last = millis();
+    _ack_pending-=len;
     if(_sent_cb) {
         _sent_cb(_sent_cb_arg, this, len, (millis() - _pcb_sent_at));
     }
@@ -957,11 +969,10 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
     uint32_t now = millis();
 
     // ACK Timeout
-    if(_pcb_busy && _ack_timeout && (now - _pcb_sent_at) >= _ack_timeout){
-        _pcb_busy = false;
+    if(_ack_timeout && _ack_pending && (now - _ack_last) >= _ack_timeout){
         log_w("ack timeout %d", pcb->state);
         if(_timeout_cb)
-            _timeout_cb(_timeout_cb_arg, this, (now - _pcb_sent_at));
+            _timeout_cb(_timeout_cb_arg, this, (now - _ack_last));
         return ERR_OK;
     }
     // RX Timeout
@@ -1029,6 +1040,10 @@ void AsyncClient::setRxTimeout(uint32_t timeout){
 
 uint32_t AsyncClient::getRxTimeout(){
     return _rx_since_timeout;
+}
+
+uint32_t AsyncClient::getPendingAck(){
+    return _ack_pending;
 }
 
 uint32_t AsyncClient::getAckTimeout(){
