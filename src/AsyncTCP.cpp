@@ -1276,6 +1276,11 @@ void AsyncServer::onClient(AcConnectHandler cb, void* arg){
     _connect_cb_arg = arg;
 }
 
+void AsyncServer::port(uint16_t port)
+{
+    _port = port;
+}
+
 void AsyncServer::begin(){
     if(_pcb) {
         return;
