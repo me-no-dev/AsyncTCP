@@ -939,8 +939,8 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             } else if(_pcb) {
                 _tcp_recved(_pcb, _closed_slot, b->len);
             }
-            pbuf_free(b);
         }
+        pbuf_free(b);
     }
     return ERR_OK;
 }
