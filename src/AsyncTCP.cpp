@@ -31,6 +31,10 @@ extern "C"{
 }
 #include "esp_task_wdt.h"
 
+#define CONFIG_ASYNC_TCP_STACK      2*8192
+#define CONFIG_ASYNC_TCP_PRIORITY   3
+#define CONFIG_ASYNC_TCP_QUEUE_SIZE 128
+
 /*
  * TCP/IP Event Task
  * */
@@ -91,7 +95,6 @@ static uint32_t _closed_index = []() {
     }
     return 1;
 }();
-
 
 static inline bool _init_async_event_queue(){
     if(!_async_queue){
@@ -218,7 +221,7 @@ static bool _start_async_task(){
         return false;
     }
     if(!_async_service_task_handle){
-        xTaskCreateUniversal(_async_service_task, "async_tcp", CONFIG_ASYNC_TCP_STACK, NULL, 3, &_async_service_task_handle, CONFIG_ASYNC_TCP_RUNNING_CORE);
+        xTaskCreateUniversal(_async_service_task, "async_tcp", CONFIG_ASYNC_TCP_STACK, NULL, CONFIG_ASYNC_TCP_PRIORITY, &_async_service_task_handle, CONFIG_ASYNC_TCP_RUNNING_CORE);
         if(!_async_service_task_handle){
             return false;
         }
@@ -384,7 +387,7 @@ static esp_err_t _tcp_output(tcp_pcb * pcb, int8_t closed_slot) {
     if(!pcb){
         return ERR_CONN;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     tcpip_api_call(_tcp_output_api, (struct tcpip_api_call_data*)&msg);
@@ -404,7 +407,7 @@ static esp_err_t _tcp_write(tcp_pcb * pcb, int8_t closed_slot, const char* data,
     if(!pcb){
         return ERR_CONN;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     msg.write.data = data;
@@ -428,7 +431,7 @@ static esp_err_t _tcp_recved(tcp_pcb * pcb, int8_t closed_slot, size_t len) {
     if(!pcb){
         return ERR_CONN;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     msg.received = len;
@@ -449,7 +452,7 @@ static esp_err_t _tcp_close(tcp_pcb * pcb, int8_t closed_slot) {
     if(!pcb){
         return ERR_CONN;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     tcpip_api_call(_tcp_close_api, (struct tcpip_api_call_data*)&msg);
@@ -469,7 +472,7 @@ static esp_err_t _tcp_abort(tcp_pcb * pcb, int8_t closed_slot) {
     if(!pcb){
         return ERR_CONN;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     tcpip_api_call(_tcp_abort_api, (struct tcpip_api_call_data*)&msg);
@@ -486,7 +489,7 @@ static esp_err_t _tcp_connect(tcp_pcb * pcb, int8_t closed_slot, ip_addr_t * add
     if(!pcb){
         return ESP_FAIL;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = closed_slot;
     msg.connect.addr = addr;
@@ -506,7 +509,7 @@ static esp_err_t _tcp_bind(tcp_pcb * pcb, ip_addr_t * addr, uint16_t port) {
     if(!pcb){
         return ESP_FAIL;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = -1;
     msg.bind.addr = addr;
@@ -526,15 +529,13 @@ static tcp_pcb * _tcp_listen_with_backlog(tcp_pcb * pcb, uint8_t backlog) {
     if(!pcb){
         return NULL;
     }
-    tcp_api_call_t msg;
+    static tcp_api_call_t msg;
     msg.pcb = pcb;
     msg.closed_slot = -1;
     msg.backlog = backlog?backlog:0xFF;
     tcpip_api_call(_tcp_listen_api, (struct tcpip_api_call_data*)&msg);
     return msg.pcb;
 }
-
-
 
 /*
   Async TCP Client
@@ -1276,8 +1277,7 @@ void AsyncServer::onClient(AcConnectHandler cb, void* arg){
     _connect_cb_arg = arg;
 }
 
-void AsyncServer::port(uint16_t port)
-{
+void AsyncServer::port(uint16_t port){
     _port = port;
 }
 
