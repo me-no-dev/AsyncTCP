@@ -34,7 +34,7 @@ extern "C" {
 //If core is not defined, then we are running in Arduino or PIO
 #ifndef CONFIG_ASYNC_TCP_RUNNING_CORE
 #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 //any available core
-#define CONFIG_ASYNC_TCP_USE_WDT 1 //if enabled, adds between 33us and 200us per event
+#define CONFIG_ASYNC_TCP_USE_WDT      0 //if enabled, adds between 33us and 200us per event
 #endif
 
 class AsyncClient;
@@ -135,7 +135,7 @@ class AsyncClient {
     static int8_t _s_lwip_fin(void *arg, struct tcp_pcb *tpcb, int8_t err);
     static void _s_error(void *arg, int8_t err);
     static int8_t _s_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len);
-    static int8_t _s_connected(void* arg, void* tpcb, int8_t err);
+    static int8_t _s_connected(void* arg, struct tcp_pcb *tpcb, int8_t err);
     static void _s_dns_found(const char *name, struct ip_addr *ipaddr, void *arg);
 
     int8_t _recv(tcp_pcb* pcb, pbuf* pb, int8_t err);
@@ -173,8 +173,8 @@ class AsyncClient {
 
     int8_t _close();
     void _free_closed_slot();
-    void _allocate_closed_slot();
-    int8_t _connected(void* pcb, int8_t err);
+    boolean _allocate_closed_slot();
+    int8_t _connected(tcp_pcb* pcb, int8_t err);
     void _error(int8_t err);
     int8_t _poll(tcp_pcb* pcb);
     int8_t _sent(tcp_pcb* pcb, uint16_t len);
