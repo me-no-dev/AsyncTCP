@@ -23,6 +23,8 @@
 #define ASYNCTCP_H_
 
 #include "IPAddress.h"
+#include "IPv6Address.h"
+#include "sdkconfig.h"
 #include <functional>
 
 #ifndef LIBRETINY
@@ -30,6 +32,8 @@
 extern "C" {
     #include "freertos/semphr.h"
     #include "lwip/pbuf.h"
+    #include "lwip/ip_addr.h"
+    #include "lwip/ip6_addr.h"
 }
 #else
 extern "C" {
@@ -80,7 +84,8 @@ class AsyncClient {
       return !(*this == other);
     }
     bool connect(IPAddress ip, uint16_t port);
-    bool connect(const char* host, uint16_t port);
+    bool connect(IPv6Address ip, uint16_t port);
+    bool connect(const char *host, uint16_t port);
     void close(bool now = false);
     void stop();
     int8_t abort();
@@ -114,15 +119,19 @@ class AsyncClient {
     bool getNoDelay();
 
     uint32_t getRemoteAddress();
+    ip6_addr_t getRemoteAddress6();
     uint16_t getRemotePort();
     uint32_t getLocalAddress();
+    ip6_addr_t getLocalAddress6();
     uint16_t getLocalPort();
 
     //compatibility
     IPAddress remoteIP();
-    uint16_t  remotePort();
+    IPv6Address remoteIP6();
+    uint16_t remotePort();
     IPAddress localIP();
-    uint16_t  localPort();
+    IPv6Address localIP6();
+    uint16_t localPort();
 
     void onConnect(AcConnectHandler cb, void* arg = 0);     //on successful connect
     void onDisconnect(AcConnectHandler cb, void* arg = 0);  //disconnected
@@ -154,6 +163,8 @@ class AsyncClient {
     tcp_pcb * pcb(){ return _pcb; }
 
   protected:
+    bool _connect(ip_addr_t addr, uint16_t port);
+
     tcp_pcb* _pcb;
     int8_t  _closed_slot;
 
@@ -202,6 +213,7 @@ class AsyncClient {
 class AsyncServer {
   public:
     AsyncServer(IPAddress addr, uint16_t port);
+    AsyncServer(IPv6Address addr, uint16_t port);
     AsyncServer(uint16_t port);
     ~AsyncServer();
     void onClient(AcConnectHandler cb, void* arg);
@@ -217,7 +229,10 @@ class AsyncServer {
 
   protected:
     uint16_t _port;
+    bool _bind4 = false;
+    bool _bind6 = false;
     IPAddress _addr;
+    IPv6Address _addr6;
     bool _noDelay;
     tcp_pcb* _pcb;
     AcConnectHandler _connect_cb;
