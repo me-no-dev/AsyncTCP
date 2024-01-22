@@ -24,7 +24,6 @@
 
 #include "IPAddress.h"
 #include "IPv6Address.h"
-#include "sdkconfig.h"
 #include <functional>
 
 #ifndef LIBRETINY
