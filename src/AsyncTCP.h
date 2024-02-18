@@ -25,14 +25,14 @@
 #include "IPAddress.h"
 #include "IPv6Address.h"
 #include <functional>
+#include "lwip/ip_addr.h"
+#include "lwip/ip6_addr.h"
 
 #ifndef LIBRETINY
 #include "sdkconfig.h"
 extern "C" {
     #include "freertos/semphr.h"
     #include "lwip/pbuf.h"
-    #include "lwip/ip_addr.h"
-    #include "lwip/ip6_addr.h"
 }
 #else
 extern "C" {
@@ -118,18 +118,20 @@ class AsyncClient {
     bool getNoDelay();
 
     uint32_t getRemoteAddress();
-    ip6_addr_t getRemoteAddress6();
     uint16_t getRemotePort();
     uint32_t getLocalAddress();
-    ip6_addr_t getLocalAddress6();
     uint16_t getLocalPort();
+#if LWIP_IPV6
+    ip6_addr_t getRemoteAddress6();
+    ip6_addr_t getLocalAddress6();
+    IPv6Address remoteIP6();
+    IPv6Address localIP6();
+#endif
 
     //compatibility
     IPAddress remoteIP();
-    IPv6Address remoteIP6();
     uint16_t remotePort();
     IPAddress localIP();
-    IPv6Address localIP6();
     uint16_t localPort();
 
     void onConnect(AcConnectHandler cb, void* arg = 0);     //on successful connect
