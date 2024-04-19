@@ -2,28 +2,27 @@ name: Async TCP CI
 
 on:
   push:
-    branches:
   pull_request:
+  workflow_dispatch:
 
 jobs:
-
   build-arduino:
-    name: Arduino on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.config }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        config: [arduino-cli.yaml, arduino-cli-dev.yaml]
     steps:
       - uses: actions/checkout@v3
       - uses: arduino/setup-arduino-cli@v1
       - name: Download board
         run: |
-          arduino-cli --config-file arduino-cli.yaml core update-index
-          arduino-cli --config-file arduino-cli.yaml board listall
-          arduino-cli --config-file arduino-cli.yaml core install esp32:esp32@2.0.2
+          arduino-cli --config-file ${{ matrix.config }} core update-index
+          arduino-cli --config-file ${{ matrix.config }} board listall
+          arduino-cli --config-file ${{ matrix.config }} core install esp32:esp32
       - name: Compile Sketch
-        run: arduino-cli --config-file arduino-cli.yaml --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
+        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
       - name: Compile Sketch with IPv6
         env:
           LWIP_IPV6: true
-        run: arduino-cli --config-file arduino-cli.yaml --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
+        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
