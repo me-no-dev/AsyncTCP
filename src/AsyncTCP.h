@@ -22,6 +22,12 @@
 #ifndef ASYNCTCP_H_
 #define ASYNCTCP_H_
 
+#define ASYNCTCP_VERSION "3.0.0"
+#define ASYNCTCP_VERSION_MAJOR 0
+#define ASYNCTCP_VERSION_MINOR 0
+#define ASYNCTCP_VERSION_REVISION 0
+#define ASYNCTCP_FORK_mathieucarbou
+
 #include "IPAddress.h"
 #if ESP_IDF_VERSION_MAJOR < 5
 #include "IPv6Address.h"
