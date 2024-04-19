@@ -23,7 +23,9 @@
 #define ASYNCTCP_H_
 
 #include "IPAddress.h"
+#if ESP_IDF_VERSION_MAJOR < 5
 #include "IPv6Address.h"
+#endif
 #include <functional>
 #include "lwip/ip_addr.h"
 #include "lwip/ip6_addr.h"
@@ -83,7 +85,9 @@ class AsyncClient {
       return !(*this == other);
     }
     bool connect(IPAddress ip, uint16_t port);
+#if ESP_IDF_VERSION_MAJOR < 5
     bool connect(IPv6Address ip, uint16_t port);
+#endif
     bool connect(const char *host, uint16_t port);
     void close(bool now = false);
     void stop();
@@ -124,8 +128,13 @@ class AsyncClient {
 #if LWIP_IPV6
     ip6_addr_t getRemoteAddress6();
     ip6_addr_t getLocalAddress6();
+#if ESP_IDF_VERSION_MAJOR < 5
     IPv6Address remoteIP6();
     IPv6Address localIP6();
+#else
+    IPAddress remoteIP6();
+    IPAddress localIP6();
+#endif
 #endif
 
     //compatibility
@@ -214,7 +223,9 @@ class AsyncClient {
 class AsyncServer {
   public:
     AsyncServer(IPAddress addr, uint16_t port);
+#if ESP_IDF_VERSION_MAJOR < 5
     AsyncServer(IPv6Address addr, uint16_t port);
+#endif
     AsyncServer(uint16_t port);
     ~AsyncServer();
     void onClient(AcConnectHandler cb, void* arg);
@@ -233,7 +244,9 @@ class AsyncServer {
     bool _bind4 = false;
     bool _bind6 = false;
     IPAddress _addr;
+#if ESP_IDF_VERSION_MAJOR < 5
     IPv6Address _addr6;
+#endif
     bool _noDelay;
     tcp_pcb* _pcb;
     AcConnectHandler _connect_cb;

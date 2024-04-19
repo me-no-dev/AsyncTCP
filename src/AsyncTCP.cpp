@@ -722,12 +722,16 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
 
 bool AsyncClient::connect(IPAddress ip, uint16_t port){
     ip_addr_t addr;
+#if ESP_IDF_VERSION_MAJOR < 5
     ip_addr_set_ip4_u32(&addr, ip);
+#else
+    ip.to_ip_addr_t(&addr);
+#endif
 
     return _connect(addr, port);
 }
 
-#if LWIP_IPV6
+#if LWIP_IPV6 && ESP_IDF_VERSION_MAJOR < 5
 bool AsyncClient::connect(IPv6Address ip, uint16_t port){
     ip_addr_t addr;
     addr.type = IPADDR_TYPE_V6;
@@ -747,6 +751,7 @@ bool AsyncClient::connect(const char* host, uint16_t port){
 
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
     if(err == ERR_OK) {
+#if ESP_IDF_VERSION_MAJOR < 5
 #if LWIP_IPV6
         if(addr.type == IPADDR_TYPE_V6) {
             return connect(IPv6Address(addr.u_addr.ip6.addr), port);
@@ -754,6 +759,9 @@ bool AsyncClient::connect(const char* host, uint16_t port){
         return connect(IPAddress(addr.u_addr.ip4.addr), port);
 #else
         return connect(IPAddress(addr.addr), port);
+#endif
+#else
+        return _connect(addr, port);
 #endif
     } else if(err == ERR_INPROGRESS) {
         _connect_port = port;
@@ -1019,11 +1027,16 @@ int8_t AsyncClient::_poll(tcp_pcb* pcb){
 }
 
 void AsyncClient::_dns_found(struct ip_addr *ipaddr){
+#if ESP_IDF_VERSION_MAJOR < 5
     if(ipaddr && IP_IS_V4(ipaddr)){
         connect(IPAddress(ip_addr_get_ip4_u32(ipaddr)), _connect_port);
 #if LWIP_IPV6
     } else if(ipaddr && ipaddr->u_addr.ip6.addr){
         connect(IPv6Address(ipaddr->u_addr.ip6.addr), _connect_port);
+#endif
+#else
+    if(ipaddr) {
+        connect(IPAddress(ipaddr), _connect_port);
 #endif
     } else {
         if(_error_cb) {
@@ -1138,7 +1151,7 @@ ip6_addr_t AsyncClient::getLocalAddress6() {
     }
     return _pcb->local_ip.u_addr.ip6;
 }
-
+#if ESP_IDF_VERSION_MAJOR < 5
 IPv6Address AsyncClient::remoteIP6() {
     return IPv6Address(getRemoteAddress6().addr);
 }
@@ -1146,6 +1159,15 @@ IPv6Address AsyncClient::remoteIP6() {
 IPv6Address AsyncClient::localIP6() {
     return IPv6Address(getLocalAddress6().addr);
 }
+#else
+IPAddress AsyncClient::remoteIP6() {
+    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->remote_ip)) : IPAddress(IPType::IPv6);
+}
+
+IPAddress AsyncClient::localIP6() {
+    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->local_ip)) : IPAddress(IPType::IPv6);
+}
+#endif
 #endif
 
 uint16_t AsyncClient::getRemotePort() {
@@ -1174,7 +1196,11 @@ uint16_t AsyncClient::getLocalPort() {
 }
 
 IPAddress AsyncClient::remoteIP() {
+#if ESP_IDF_VERSION_MAJOR < 5
     return IPAddress(getRemoteAddress());
+#else
+    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->remote_ip)) : IPAddress();
+#endif
 }
 
 uint16_t AsyncClient::remotePort() {
@@ -1182,7 +1208,11 @@ uint16_t AsyncClient::remotePort() {
 }
 
 IPAddress AsyncClient::localIP() {
+#if ESP_IDF_VERSION_MAJOR < 5
     return IPAddress(getLocalAddress());
+#else
+    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->local_ip)) : IPAddress();
+#endif
 }
 
 
@@ -1318,7 +1348,12 @@ int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
 
 AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 : _port(port)
+#if ESP_IDF_VERSION_MAJOR < 5
 , _bind4(true)
+#else
+, _bind4(addr.type() != IPType::IPv6)
+, _bind6(addr.type() == IPType::IPv6)
+#endif
 , _addr(addr)
 , _noDelay(false)
 , _pcb(0)
@@ -1326,6 +1361,7 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 , _connect_cb_arg(0)
 {}
 
+#if ESP_IDF_VERSION_MAJOR < 5
 AsyncServer::AsyncServer(IPv6Address addr, uint16_t port)
 : _port(port)
 , _bind6(true)
@@ -1335,13 +1371,16 @@ AsyncServer::AsyncServer(IPv6Address addr, uint16_t port)
 , _connect_cb(0)
 , _connect_cb_arg(0)
 {}
+#endif
 
 AsyncServer::AsyncServer(uint16_t port)
 : _port(port)
 , _bind4(true)
 , _bind6(true)
 , _addr((uint32_t) IPADDR_ANY)
+#if ESP_IDF_VERSION_MAJOR < 5
 , _addr6()
+#endif
 , _noDelay(false)
 , _pcb(0)
 , _connect_cb(0)
