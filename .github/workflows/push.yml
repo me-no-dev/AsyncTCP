@@ -10,6 +10,7 @@ jobs:
     name: ${{ matrix.config }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: true
       matrix:
         config: [arduino-cli.yaml, arduino-cli-dev.yaml]
     steps:
@@ -26,3 +27,24 @@ jobs:
         env:
           LWIP_IPV6: true
         run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
+
+  build-pio:
+    name: pio ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        env: [latest, v660, master, v300-rc1, Jason2866]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: ${{ runner.os }}-platformio
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install platformio
+      - run: pio run -e ${{ matrix.env }}
