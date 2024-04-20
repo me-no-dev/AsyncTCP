@@ -723,7 +723,10 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
 bool AsyncClient::connect(IPAddress ip, uint16_t port){
     ip_addr_t addr;
 #if ESP_IDF_VERSION_MAJOR < 5
-    ip_addr_set_ip4_u32(&addr, ip);
+    // ip_addr_set_ip4_u32(&addr, ip);
+    addr.u_addr.ip4.addr = ip;
+    addr.type = IPADDR_TYPE_V4;
+    ip_clear_no4(&addr);
 #else
     ip.to_ip_addr_t(&addr);
 #endif
@@ -1422,10 +1425,17 @@ void AsyncServer::begin(){
     }
 
     ip_addr_t local_addr;
-    ip_addr_set_ip4_u32(&local_addr, _addr);
-/*    local_addr.type = bind_type;
+#if ESP_IDF_VERSION_MAJOR < 5
+    // ip_addr_set_ip4_u32(&local_addr, _addr);
+    local_addr.u_addr.ip4.addr = _addr;
+    local_addr.type = IPADDR_TYPE_V4;
+    ip_clear_no4(&local_addr);
+    /*    local_addr.type = bind_type;
     local_addr.u_addr.ip4.addr = (uint32_t) _addr;
     memcpy(local_addr.u_addr.ip6.addr, static_cast<const uint32_t*>(_addr6), sizeof(uint32_t) * 4); */
+#else
+    _addr.to_ip_addr_t(&local_addr);
+#endif
     err = _tcp_bind(_pcb, &local_addr, _port);
 
     if (err != ERR_OK) {
