@@ -29,12 +29,13 @@ jobs:
         run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
 
   build-pio:
-    name: pio ${{ matrix.env }}
+    name: ${{ matrix.board }} ${{ matrix.env }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        env: [latest, v660, master, v300-rc1, Jason2866]
+        board: [esp32dev, esp32-s3-devkitc-1]
+        env: [v660, latest-espressif32, latest-arduino, v300-rc1, Jason2866]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -42,9 +43,10 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: ${{ runner.os }}-platformio
+          key: ${{ matrix.env }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
       - run: pip install platformio
+      - run: sed -i -e 's/esp32dev/${{ matrix.board }}/g' platformio.ini
       - run: pio run -e ${{ matrix.env }}
