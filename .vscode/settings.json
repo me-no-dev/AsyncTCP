@@ -1,3 +1,9 @@
 {
-  "cmake.configureOnOpen": false
+  "cmake.configureOnOpen": false,
+  "githubPullRequests.remotes": [
+    "origin",
+    "upstream",
+    "OttoWinter",
+    "me-no-dev"
+  ]
 }
