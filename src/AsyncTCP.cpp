@@ -1118,6 +1118,18 @@ bool AsyncClient::getNoDelay(){
     return tcp_nagle_disabled(_pcb);
 }
 
+void AsyncClient::setKeepAlive(uint32_t ms, uint8_t cnt){
+    if(ms!=0) {
+        _pcb->so_options |= SOF_KEEPALIVE; //Turn on TCP Keepalive for the given pcb
+        // Set the time between keepalive messages in milli-seconds
+        _pcb->keep_idle = ms;
+        _pcb->keep_intvl = ms;
+        _pcb->keep_cnt = cnt; //The number of unanswered probes required to force closure of the socket
+    } else {
+        _pcb->so_options &= ~SOF_KEEPALIVE; //Turn off TCP Keepalive for the given pcb
+    }
+}
+
 uint16_t AsyncClient::getMss(){
     if(!_pcb) {
         return 0;
