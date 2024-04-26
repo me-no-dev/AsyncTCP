@@ -66,7 +66,7 @@ extern "C" {
 #endif
 
 #ifndef CONFIG_ASYNC_TCP_QUEUE_SIZE
-#define CONFIG_ASYNC_TCP_QUEUE_SIZE 32
+#define CONFIG_ASYNC_TCP_QUEUE_SIZE 64
 #endif
 
 class AsyncClient;
