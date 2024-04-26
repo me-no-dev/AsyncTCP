@@ -46,7 +46,7 @@ typedef struct {
         void *arg;
         union {
                 struct {
-                        void * pcb;
+                        tcp_pcb * pcb;
                         int8_t err;
                 } connected;
                 struct {
@@ -895,13 +895,10 @@ void AsyncClient::_free_closed_slot(){
  * Private Callbacks
  * */
 
-int8_t AsyncClient::_connected(void* pcb, int8_t err){
+int8_t AsyncClient::_connected(tcp_pcb* pcb, int8_t err){
     _pcb = reinterpret_cast<tcp_pcb*>(pcb);
     if(_pcb){
         _rx_last_packet = millis();
-//        tcp_recv(_pcb, &_tcp_recv);
-//        tcp_sent(_pcb, &_tcp_sent);
-//        tcp_poll(_pcb, &_tcp_poll, 1);
     }
     if(_connect_cb) {
         _connect_cb(_connect_cb_arg, this);
@@ -1353,7 +1350,7 @@ void AsyncClient::_s_error(void * arg, int8_t err) {
     reinterpret_cast<AsyncClient*>(arg)->_error(err);
 }
 
-int8_t AsyncClient::_s_connected(void * arg, void * pcb, int8_t err){
+int8_t AsyncClient::_s_connected(void * arg, struct tcp_pcb * pcb, int8_t err){
     return reinterpret_cast<AsyncClient*>(arg)->_connected(pcb, err);
 }
 
