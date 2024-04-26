@@ -61,6 +61,10 @@ extern "C" {
 #define CONFIG_ASYNC_TCP_STACK_SIZE 8192 * 2
 #endif
 
+#ifndef CONFIG_ASYNC_TCP_PRIORITY
+#define CONFIG_ASYNC_TCP_PRIORITY 3
+#endif
+
 class AsyncClient;
 
 #define ASYNC_MAX_ACK_TIME 5000
