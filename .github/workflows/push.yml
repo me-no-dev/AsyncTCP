@@ -14,7 +14,7 @@ jobs:
       matrix:
         config: [arduino-cli.yaml, arduino-cli-dev.yaml]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: arduino/setup-arduino-cli@v1
       - name: Download board
         run: |
