@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         board: [esp32dev, esp32-s3-devkitc-1]
-        env: [v660, latest-espressif32, latest-arduino, v300-rc1]
+        env: [v660, latest-espressif32, latest-arduino, arduino-v3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
