@@ -712,7 +712,7 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
         return false;
     }
 
-    tcp_pcb* pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
+    tcp_pcb* pcb = tcp_new_ip_type(addr.type);
     if (!pcb){
         log_e("pcb == NULL");
         return false;
@@ -730,10 +730,8 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
 bool AsyncClient::connect(IPAddress ip, uint16_t port){
     ip_addr_t addr;
 #if ESP_IDF_VERSION_MAJOR < 5
-    // ip_addr_set_ip4_u32(&addr, ip);
     addr.u_addr.ip4.addr = ip;
     addr.type = IPADDR_TYPE_V4;
-    ip_clear_no4(&addr);
 #else
     ip.to_ip_addr_t(&addr);
 #endif
@@ -970,10 +968,9 @@ int8_t AsyncClient::_fin(tcp_pcb* pcb, int8_t err) {
 }
 
 int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
-    _rx_last_packet = millis();
-    _rx_last_ack = millis();
+    _rx_last_ack = _rx_last_packet = millis();
     if(_sent_cb) {
-        _sent_cb(_sent_cb_arg, this, len, (millis() - _tx_last_packet));
+        _sent_cb(_sent_cb_arg, this, len, (_rx_last_packet - _tx_last_packet));
     }
     return ERR_OK;
 }
@@ -1382,6 +1379,7 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 : _port(port)
 #if ESP_IDF_VERSION_MAJOR < 5
 , _bind4(true)
+, _bind6(false)
 #else
 , _bind4(addr.type() != IPType::IPv6)
 , _bind6(addr.type() == IPType::IPv6)
@@ -1396,6 +1394,7 @@ AsyncServer::AsyncServer(IPAddress addr, uint16_t port)
 #if ESP_IDF_VERSION_MAJOR < 5
 AsyncServer::AsyncServer(IPv6Address addr, uint16_t port)
 : _port(port)
+, _bind4(false)
 , _bind6(true)
 , _addr6(addr)
 , _noDelay(false)
@@ -1408,7 +1407,7 @@ AsyncServer::AsyncServer(IPv6Address addr, uint16_t port)
 AsyncServer::AsyncServer(uint16_t port)
 : _port(port)
 , _bind4(true)
-, _bind6(true)
+, _bind6(false)
 , _addr((uint32_t) IPADDR_ANY)
 #if ESP_IDF_VERSION_MAJOR < 5
 , _addr6()
@@ -1437,17 +1436,8 @@ void AsyncServer::begin(){
         log_e("failed to start task");
         return;
     }
-    int8_t err, bind_type;
-
-    if(_bind4 && _bind6) {
-        bind_type = IPADDR_TYPE_ANY;
-    } else if (_bind6) {
-        bind_type = IPADDR_TYPE_V6;
-    } else {
-        bind_type = IPADDR_TYPE_V4;
-    }
-
-    _pcb = tcp_new_ip_type(bind_type);
+    int8_t err;
+    _pcb = tcp_new_ip_type(_bind4 && _bind6 ? IPADDR_TYPE_ANY : (_bind6 ? IPADDR_TYPE_V6 : IPADDR_TYPE_V4));
     if (!_pcb){
         log_e("_pcb == NULL");
         return;
@@ -1455,13 +1445,13 @@ void AsyncServer::begin(){
 
     ip_addr_t local_addr;
 #if ESP_IDF_VERSION_MAJOR < 5
-    // ip_addr_set_ip4_u32(&local_addr, _addr);
-    local_addr.u_addr.ip4.addr = _addr;
-    local_addr.type = IPADDR_TYPE_V4;
-    ip_clear_no4(&local_addr);
-    /*    local_addr.type = bind_type;
-    local_addr.u_addr.ip4.addr = (uint32_t) _addr;
-    memcpy(local_addr.u_addr.ip6.addr, static_cast<const uint32_t*>(_addr6), sizeof(uint32_t) * 4); */
+    if (_bind6) { // _bind6 && _bind4 both at the same time is not supported on Arduino 2 in this lib API
+        local_addr.type = IPADDR_TYPE_V6;
+        memcpy(local_addr.u_addr.ip6.addr, static_cast<const uint32_t*>(_addr6), sizeof(uint32_t) * 4);
+    } else {
+        local_addr.type = IPADDR_TYPE_V4;
+        local_addr.u_addr.ip4.addr = _addr;
+    }
 #else
     _addr.to_ip_addr_t(&local_addr);
 #endif
