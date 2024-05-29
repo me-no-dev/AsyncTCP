@@ -10,7 +10,7 @@ jobs:
     name: ${{ matrix.config }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         config: [arduino-cli.yaml, arduino-cli-dev.yaml]
     steps:
