@@ -727,7 +727,7 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port){
     return true;
 }
 
-bool AsyncClient::connect(IPAddress ip, uint16_t port){
+bool AsyncClient::connect(const IPAddress& ip, uint16_t port){
     ip_addr_t addr;
 #if ESP_IDF_VERSION_MAJOR < 5
     addr.u_addr.ip4.addr = ip;
@@ -740,7 +740,7 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
 }
 
 #if LWIP_IPV6 && ESP_IDF_VERSION_MAJOR < 5
-bool AsyncClient::connect(IPv6Address ip, uint16_t port){
+bool AsyncClient::connect(const IPv6Address& ip, uint16_t port){
     ip_addr_t addr;
     addr.type = IPADDR_TYPE_V6;
     memcpy(addr.u_addr.ip6.addr, static_cast<const uint32_t*>(ip), sizeof(uint32_t) * 4);
@@ -1050,7 +1050,9 @@ void AsyncClient::_dns_found(struct ip_addr *ipaddr){
 #endif
 #else
     if(ipaddr) {
-        connect(IPAddress(ipaddr), _connect_port);
+        IPAddress ip;
+        ip.from_ip_addr_t(ipaddr);
+        connect(ip, _connect_port);
 #endif
     } else {
         if(_error_cb) {
@@ -1190,11 +1192,21 @@ IPv6Address AsyncClient::localIP6() {
 }
 #else
 IPAddress AsyncClient::remoteIP6() {
-    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->remote_ip)) : IPAddress(IPType::IPv6);
+    if (!_pcb) {
+        return IPAddress(IPType::IPv6);
+    }
+    IPAddress ip;
+    ip.from_ip_addr_t(&(_pcb->remote_ip));
+    return ip;
 }
 
 IPAddress AsyncClient::localIP6() {
-    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->local_ip)) : IPAddress(IPType::IPv6);
+    if (!_pcb) {
+        return IPAddress(IPType::IPv6);
+    }
+    IPAddress ip;
+    ip.from_ip_addr_t(&(_pcb->local_ip));
+    return ip;
 }
 #endif
 #endif
@@ -1228,7 +1240,12 @@ IPAddress AsyncClient::remoteIP() {
 #if ESP_IDF_VERSION_MAJOR < 5
     return IPAddress(getRemoteAddress());
 #else
-    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->remote_ip)) : IPAddress();
+    if (!_pcb) {
+        return IPAddress();
+    }
+    IPAddress ip;
+    ip.from_ip_addr_t(&(_pcb->remote_ip));
+    return ip;
 #endif
 }
 
@@ -1240,7 +1257,12 @@ IPAddress AsyncClient::localIP() {
 #if ESP_IDF_VERSION_MAJOR < 5
     return IPAddress(getLocalAddress());
 #else
-    return _pcb ? IPAddress(dynamic_cast<const ip_addr_t*>(&_pcb->local_ip)) : IPAddress();
+    if (!_pcb) {
+        return IPAddress();
+    }
+    IPAddress ip;
+    ip.from_ip_addr_t(&(_pcb->local_ip));
+    return ip;
 #endif
 }
 

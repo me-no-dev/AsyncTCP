@@ -101,9 +101,9 @@ class AsyncClient {
     bool operator!=(const AsyncClient &other) {
       return !(*this == other);
     }
-    bool connect(IPAddress ip, uint16_t port);
+    bool connect(const IPAddress& ip, uint16_t port);
 #if ESP_IDF_VERSION_MAJOR < 5
-    bool connect(IPv6Address ip, uint16_t port);
+    bool connect(const IPv6Address& ip, uint16_t port);
 #endif
     bool connect(const char *host, uint16_t port);
     void close(bool now = false);
