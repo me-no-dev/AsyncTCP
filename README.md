@@ -22,3 +22,4 @@ The base classes on which everything else is built. They expose all possible sce
 - Arduino 3 / ESP-IDF 5 compatibility
 - Changed lib name: `AsyncTCP` -> `Async TCP`
 - Point to `mathieucarbou/Async TCP @ ^3.1.3`
+- IPv6 support
