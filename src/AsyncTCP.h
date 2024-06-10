@@ -160,7 +160,7 @@ class AsyncClient {
     AcConnectHandler _poll_cb;
     void* _poll_cb_arg;
 
-    bool _pcb_busy;
+    uint32_t _pcb_busy;
     uint32_t _pcb_sent_at;
     bool _ack_pcb;
     uint32_t _rx_ack_len;
