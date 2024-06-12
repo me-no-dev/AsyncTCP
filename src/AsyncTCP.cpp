@@ -32,8 +32,8 @@ extern "C"{
 #include "esp_task_wdt.h"
 
 #define CONFIG_ASYNC_TCP_STACK      2*8192
-#define CONFIG_ASYNC_TCP_PRIORITY   10
-#define CONFIG_ASYNC_TCP_QUEUE_SIZE 64
+#define CONFIG_ASYNC_TCP_PRIORITY   3
+#define CONFIG_ASYNC_TCP_QUEUE_SIZE 128
 
 #define ASYNC_TCP_PRINTFLN(f_, ...) Serial.printf_P(PSTR(f_ "\r\n"), ##__VA_ARGS__)
 #define ASYNC_TCP_TAG_CONSOLE(...)  ASYNC_TCP_PRINTFLN("[AsyncTCP]" __VA_ARGS__)
