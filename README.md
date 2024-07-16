@@ -2,7 +2,7 @@
 
 [![License: LGPL 3.0](https://img.shields.io/badge/License-LGPL%203.0-yellow.svg)](https://opensource.org/license/lgpl-3-0/)
 [![Continuous Integration](https://github.com/mathieucarbou/AsyncTCP/actions/workflows/push.yml/badge.svg)](https://github.com/mathieucarbou/AsyncTCP/actions/workflows/push.yml)
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/mathieucarbou/library/Async%20TCP.svg)](https://registry.platformio.org/libraries/mathieucarbou/Async%20TCP)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/mathieucarbou/library/AsyncTCP.svg)](https://registry.platformio.org/libraries/mathieucarbou/AsyncTCP)
 
 A fork of the [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) library by [@me-no-dev](https://github.com/me-no-dev) for [ESPHome](https://esphome.io).
 
@@ -21,8 +21,7 @@ The base classes on which everything else is built. They expose all possible sce
 - All improvements from [ESPHome fork](https://github.com/esphome/AsyncTCP)
 - Reverted back `library.properties` for Arduino IDE users
 - Arduino 3 / ESP-IDF 5 compatibility
-- Changed lib name: `AsyncTCP` -> `Async TCP`
-- Point to `mathieucarbou/Async TCP @ ^3.1.4`
+- Point to `mathieucarbou/AsyncTCP @ ^3.1.4`
 - IPv6 support
 
 ## Important recommendations
