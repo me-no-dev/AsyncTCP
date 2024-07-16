@@ -35,6 +35,12 @@ extern "C" {
 #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 //any available core
 #define CONFIG_ASYNC_TCP_USE_WDT 1 //if enabled, adds between 33us and 200us per event
 #endif
+#ifndef CONFIG_ASYNC_TCP_STACK
+#define CONFIG_ASYNC_TCP_STACK 8192 * 2
+#endif
+#ifndef CONFIG_ASYNC_TCP_QUEUE_SIZE
+#define CONFIG_ASYNC_TCP_QUEUE_SIZE 32
+#endif
 
 class AsyncClient;
 
