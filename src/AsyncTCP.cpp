@@ -33,6 +33,12 @@ extern "C"{
 #include "esp_task_wdt.h"
 #endif
 
+// Required for:
+// https://github.com/espressif/arduino-esp32/blob/3.0.3/libraries/Network/src/NetworkInterface.cpp#L37-L47
+#if ESP_IDF_VERSION_MAJOR >= 5
+#include <NetworkInterface.h>
+#endif
+
 /*
  * TCP/IP Event Task
  * */
