@@ -1097,11 +1097,8 @@ size_t AsyncClient::write(const char* data) {
 
 size_t AsyncClient::write(const char* data, size_t size, uint8_t apiflags) {
     size_t will_send = add(data, size, apiflags);
-    if(!will_send) {
+    if(!will_send || !send()) {
         return 0;
-    }
-    while (connected() && !send()) {
-        taskYIELD();
     }
     return will_send;
 }
