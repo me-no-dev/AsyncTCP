@@ -50,3 +50,27 @@ jobs:
       - run: pip install platformio
       - run: sed -i -e 's/esp32dev/${{ matrix.board }}/g' platformio.ini
       - run: pio run -e ${{ matrix.env }}
+
+  build-pioarduino:
+    name: ${{ matrix.board }} ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [esp32-c6-devkitc-1]
+        env: [pioarduino]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: ${{ matrix.env }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install platformio
+      - run: sed -i -e 's/esp32-c6-devkitc-1/${{ matrix.board }}/g' platformio.ini
+      - run: pio run -e ${{ matrix.env }}
+  
