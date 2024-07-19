@@ -28,37 +28,39 @@ jobs:
           LWIP_IPV6: true
         run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
 
-  build-pio:
-    name: ${{ matrix.board }} ${{ matrix.env }}
+  pio_envs:
+    name: Get PlatformIO Envs
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        board: [esp32dev, esp32-s3-devkitc-1]
-        env: [arduino-2, arduino-3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
-          path: |
-            ~/.platformio
-            ~/.cache/pip
-          key: ${{ matrix.env }}
+          key: pip
+          path: ~/.cache/pip
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install platformio
-      - run: sed -i -e 's/esp32dev/${{ matrix.board }}/g' platformio.ini
-      - run: pio run -e ${{ matrix.env }}
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+      - name: Get Envs
+        id: envs
+        run: |
+          echo "pio_default_envs=$(pio project config --json-output | jq -cr '[ .[][0] | select(startswith("env:") and (endswith("-debug")|not)) | .[4:] ]')" >> $GITHUB_OUTPUT
 
-  build-pioarduino:
-    name: ${{ matrix.board }} ${{ matrix.env }}
+    outputs:
+      pio_default_envs: ${{ steps.envs.outputs.pio_default_envs }}
+      
+  build-pio:
+    name: "pio:${{ matrix.environment }}"
+    needs: [pio_envs]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        board: [esp32-c6-devkitc-1]
-        env: [pioarduino]
+        environment: ${{ fromJSON(needs.pio_envs.outputs.pio_default_envs) }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -66,11 +68,15 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: ${{ matrix.env }}
+          key: pio
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
       - run: pip install platformio
-      - run: sed -i -e 's/esp32-c6-devkitc-1/${{ matrix.board }}/g' platformio.ini
-      - run: pio run -e ${{ matrix.env }}
-  
+
+      - name: Install platformio
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+        
+      - run: PLATFORMIO_SRC_DIR=examples/ClientServer/Client pio run -e ${{ matrix.environment }}
