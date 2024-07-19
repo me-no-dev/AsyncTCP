@@ -21,8 +21,13 @@ The base classes on which everything else is built. They expose all possible sce
 - All improvements from [ESPHome fork](https://github.com/esphome/AsyncTCP)
 - Reverted back `library.properties` for Arduino IDE users
 - Arduino 3 / ESP-IDF 5 compatibility
-- Point to `mathieucarbou/AsyncTCP @ ^3.2.3`
 - IPv6 support
+
+## Coordinates
+
+```
+mathieucarbou/AsyncTCP @ ^3.2.3
+```
 
 ## Important recommendations
 
