@@ -1012,7 +1012,7 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
 
 int8_t AsyncClient::_poll(tcp_pcb* pcb){
     if(!_pcb){
-        log_d("pcb is NULL");
+        // log_d("pcb is NULL");
         return ERR_OK;
     }
     if(pcb != _pcb){
