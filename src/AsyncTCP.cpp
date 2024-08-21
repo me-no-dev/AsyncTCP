@@ -709,8 +709,9 @@ bool AsyncClient::connect(IPAddress ip, uint16_t port){
     tcp_recv(pcb, &_tcp_recv);
     tcp_sent(pcb, &_tcp_sent);
     tcp_poll(pcb, &_tcp_poll, 1);
-    _tcp_connect(pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
-    return true;
+    //_tcp_connect(pcb, &addr, port,(tcp_connected_fn)&_s_connected);
+    esp_err_t err = _tcp_connect(pcb, _closed_slot, &addr, port,(tcp_connected_fn)&_tcp_connected);
+    return err == ESP_OK;
 }
 
 bool AsyncClient::connect(const char* host, uint16_t port){
