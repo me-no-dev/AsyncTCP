@@ -747,9 +747,8 @@ bool AsyncClient::connect(const IPAddress& ip, uint16_t port){
 
 #if LWIP_IPV6 && ESP_IDF_VERSION_MAJOR < 5
 bool AsyncClient::connect(const IPv6Address& ip, uint16_t port){
-    ip_addr_t addr;
-    addr.type = IPADDR_TYPE_V6;
-    memcpy(addr.u_addr.ip6.addr, static_cast<const uint32_t*>(ip), sizeof(uint32_t) * 4);
+    auto ipaddr = static_cast<const uint32_t*>(ip);
+    ip_addr_t addr = IPADDR6_INIT(ipaddr[0], ipaddr[1], ipaddr[2], ipaddr[3]);
 
     return _connect(addr, port);
 }
