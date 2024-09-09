@@ -800,7 +800,7 @@ int8_t AsyncClient::abort(){
 }
 
 size_t AsyncClient::space(){
-    if((_pcb != NULL) && (_pcb->state == 4)){
+    if((_pcb != NULL) && (_pcb->state == ESTABLISHED)){
         return tcp_sndbuf(_pcb);
     }
     return 0;
@@ -1081,7 +1081,7 @@ bool AsyncClient::free(){
     if(!_pcb) {
         return true;
     }
-    if(_pcb->state == 0 || _pcb->state > 4) {
+    if(_pcb->state == CLOSED || _pcb->state > ESTABLISHED) {
         return true;
     }
     return false;
@@ -1284,35 +1284,35 @@ bool AsyncClient::connected(){
     if (!_pcb) {
         return false;
     }
-    return _pcb->state == 4;
+    return _pcb->state == ESTABLISHED;
 }
 
 bool AsyncClient::connecting(){
     if (!_pcb) {
         return false;
     }
-    return _pcb->state > 0 && _pcb->state < 4;
+    return _pcb->state > CLOSED && _pcb->state < ESTABLISHED;
 }
 
 bool AsyncClient::disconnecting(){
     if (!_pcb) {
         return false;
     }
-    return _pcb->state > 4 && _pcb->state < 10;
+    return _pcb->state > ESTABLISHED && _pcb->state < TIME_WAIT;
 }
 
 bool AsyncClient::disconnected(){
     if (!_pcb) {
         return true;
     }
-    return _pcb->state == 0 || _pcb->state == 10;
+    return _pcb->state == CLOSED || _pcb->state == TIME_WAIT;
 }
 
 bool AsyncClient::freeable(){
     if (!_pcb) {
         return true;
     }
-    return _pcb->state == 0 || _pcb->state > 4;
+    return _pcb->state == CLOSED || _pcb->state > ESTABLISHED;
 }
 
 bool AsyncClient::canSend(){
