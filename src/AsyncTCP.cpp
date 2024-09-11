@@ -417,7 +417,8 @@ static esp_err_t _tcp_write(tcp_pcb * pcb, int8_t closed_slot, const char* data,
 static err_t _tcp_recved_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) {
+    u32_t new_rcv_ann_wnd = msg->pcb->rcv_ann_right_edge - msg->pcb->rcv_nxt;
+    if((msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) && (new_rcv_ann_wnd <= 0xffff || LWIP_WND_SCALE)) {
         msg->err = 0;
         tcp_recved(msg->pcb, msg->received);
     }
