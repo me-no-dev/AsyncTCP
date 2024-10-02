@@ -39,6 +39,8 @@ extern "C"{
 #include <NetworkInterface.h>
 #endif
 
+#define INVALID_CLOSED_SLOT -1
+
 /*
  * TCP/IP Event Task
  * */
@@ -402,7 +404,7 @@ typedef struct {
 static err_t _tcp_output_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
         msg->err = tcp_output(msg->pcb);
     }
     return msg->err;
@@ -422,7 +424,7 @@ static esp_err_t _tcp_output(tcp_pcb * pcb, int8_t closed_slot) {
 static err_t _tcp_write_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
         msg->err = tcp_write(msg->pcb, msg->write.data, msg->write.size, msg->write.apiflags);
     }
     return msg->err;
@@ -445,7 +447,7 @@ static esp_err_t _tcp_write(tcp_pcb * pcb, int8_t closed_slot, const char* data,
 static err_t _tcp_recved_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot != -1 && !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot != INVALID_CLOSED_SLOT && !_closed_slots[msg->closed_slot]) {
         msg->err = 0;
         tcp_recved(msg->pcb, msg->received);
     }
@@ -467,7 +469,7 @@ static esp_err_t _tcp_recved(tcp_pcb * pcb, int8_t closed_slot, size_t len) {
 static err_t _tcp_close_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
         msg->err = tcp_close(msg->pcb);
     }
     return msg->err;
@@ -487,7 +489,7 @@ static esp_err_t _tcp_close(tcp_pcb * pcb, int8_t closed_slot) {
 static err_t _tcp_abort_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    if(msg->closed_slot == -1 || !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
         tcp_abort(msg->pcb);
     }
     return msg->err;
@@ -593,7 +595,7 @@ AsyncClient::AsyncClient(tcp_pcb* pcb)
 , next(NULL)
 {
     _pcb = pcb;
-    _closed_slot = -1;
+    _closed_slot = INVALID_CLOSED_SLOT;
     if(_pcb){
         _rx_last_packet = millis();
         tcp_arg(_pcb, this);
@@ -879,29 +881,29 @@ int8_t AsyncClient::_close(){
 }
 
 bool AsyncClient::_allocate_closed_slot(){
-    if (_closed_slot != -1) {
+    if (_closed_slot != INVALID_CLOSED_SLOT) {
         return true;
     }
     xSemaphoreTake(_slots_lock, portMAX_DELAY);
     uint32_t closed_slot_min_index = 0;
     for (int i = 0; i < _number_of_closed_slots; ++ i) {
-        if ((_closed_slot == -1 || _closed_slots[i] <= closed_slot_min_index) && _closed_slots[i] != 0) {
+        if ((_closed_slot == INVALID_CLOSED_SLOT || _closed_slots[i] <= closed_slot_min_index) && _closed_slots[i] != 0) {
             closed_slot_min_index = _closed_slots[i];
             _closed_slot = i;
         }
     }
-    if (_closed_slot != -1) {
+    if (_closed_slot != INVALID_CLOSED_SLOT) {
         _closed_slots[_closed_slot] = 0;
     }
     xSemaphoreGive(_slots_lock);
-    return (_closed_slot != -1);
+    return (_closed_slot != INVALID_CLOSED_SLOT);
 }
 
 void AsyncClient::_free_closed_slot(){
     xSemaphoreTake(_slots_lock, portMAX_DELAY);
-    if (_closed_slot != -1) {
+    if (_closed_slot != INVALID_CLOSED_SLOT) {
         _closed_slots[_closed_slot] = _closed_index;
-        _closed_slot = -1;
+        _closed_slot = INVALID_CLOSED_SLOT;
         ++ _closed_index;
     }
     xSemaphoreGive(_slots_lock);
