@@ -26,7 +26,7 @@ The base classes on which everything else is built. They expose all possible sce
 ## Coordinates
 
 ```
-mathieucarbou/AsyncTCP @ ^3.2.7
+mathieucarbou/AsyncTCP @ ^3.2.8
 ```
 
 ## Important recommendations
