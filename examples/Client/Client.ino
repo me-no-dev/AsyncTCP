@@ -18,7 +18,11 @@
 #define HOST "192.168.125.118"
 #define PORT 4000
 
-size_t permits = CONFIG_LWIP_MAX_ACTIVE_TCP;
+// 16 slots on esp32 (CONFIG_LWIP_MAX_ACTIVE_TCP)
+#define MAX_CLIENTS CONFIG_LWIP_MAX_ACTIVE_TCP
+// #define MAX_CLIENTS 3
+
+size_t permits = MAX_CLIENTS;
 
 void makeRequest() {
   if (!permits)
@@ -75,8 +79,7 @@ void setup() {
   Serial.println("** connected to WiFi");
   Serial.println(WiFi.localIP());
 
-  // 16 slots on esp32 (CONFIG_LWIP_MAX_ACTIVE_TCP)
-  for (size_t i = 0; i < CONFIG_LWIP_MAX_ACTIVE_TCP; i++)
+  for (size_t i = 0; i < MAX_CLIENTS; i++)
     makeRequest();
 }
 
