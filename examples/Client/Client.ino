@@ -12,8 +12,11 @@
 // #define HOST "homeassistant.local"
 // #define PORT 8123
 
-#define HOST "www.google.com"
-#define PORT 80
+// #define HOST "www.google.com"
+// #define PORT 80
+
+#define HOST "192.168.125.118"
+#define PORT 4000
 
 size_t permits = CONFIG_LWIP_MAX_ACTIVE_TCP;
 
