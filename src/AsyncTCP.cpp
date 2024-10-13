@@ -447,19 +447,8 @@ static esp_err_t _tcp_write(tcp_pcb * pcb, int8_t closed_slot, const char* data,
 static err_t _tcp_recved_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
-    // original code:
-    // causes the issue: assert failed: tcp_update_rcv_ann_wnd IDF/components/lwip/lwip/src/core/tcp.c:951 (new_rcv_ann_wnd <= 0xffff)
-    // if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
-    
-    // attempted fix 1, which was rolled back since non reproductible after middleware support in ESPAsyncWebServer but works in some cases: 
-    // - https://github.com/tbnobody/OpenDTU/discussions/2326
-    // - https://github.com/mathieucarbou/AsyncTCP/pull/24
-    if(msg->closed_slot != INVALID_CLOSED_SLOT && !_closed_slots[msg->closed_slot]) {
-    
-    // attempted fix 2,
-    // - OpenDTU testing: https://github.com/tbnobody/OpenDTU/discussions/2326
-    // - Original fix https://github.com/me-no-dev/AsyncTCP/pull/173/files#diff-5312944d5b5f39741f3827dd678a8e828e2624ceab236264c025ef2bdf400d6aR422-R428
-    // Seems to have side effects: https://github.com/me-no-dev/ESPAsyncWebServer/issues/1437
+    if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
+    // if(msg->closed_slot != INVALID_CLOSED_SLOT && !_closed_slots[msg->closed_slot]) {
     // if(msg->closed_slot != INVALID_CLOSED_SLOT) {
         msg->err = 0;
         tcp_recved(msg->pcb, msg->received);
@@ -996,19 +985,13 @@ int8_t AsyncClient::_sent(tcp_pcb* pcb, uint16_t len) {
 }
 
 int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
-    if(!_pcb || pcb != _pcb){
-        log_d("0x%08x != 0x%08x", (uint32_t)pcb, (uint32_t)_pcb);
-        return ERR_OK;
-    }
-    size_t total = 0;
-    while((pb != NULL) && (ERR_OK == err)) {
+    while(pb != NULL) {
         _rx_last_packet = millis();
         //we should not ack before we assimilate the data
         _ack_pcb = true;
         pbuf *b = pb;
         pb = b->next;
         b->next = NULL;
-        total += b->len;
         if(_pb_cb){
             _pb_cb(_pb_cb_arg, this, b);
         } else {
@@ -1017,11 +1000,13 @@ int8_t AsyncClient::_recv(tcp_pcb* pcb, pbuf* pb, int8_t err) {
             }
             if(!_ack_pcb) {
                 _rx_ack_len += b->len;
+            } else if(_pcb) {
+                _tcp_recved(_pcb, _closed_slot, b->len);
             }
         }
         pbuf_free(b);
     }
-    return _tcp_recved(pcb, _closed_slot, total);
+    return ERR_OK; 
 }
 
 int8_t AsyncClient::_poll(tcp_pcb* pcb){

@@ -20,7 +20,7 @@
 
 // 16 slots on esp32 (CONFIG_LWIP_MAX_ACTIVE_TCP)
 #define MAX_CLIENTS CONFIG_LWIP_MAX_ACTIVE_TCP
-// #define MAX_CLIENTS 3
+// #define MAX_CLIENTS 1
 
 size_t permits = MAX_CLIENTS;
 
@@ -52,8 +52,7 @@ void makeRequest() {
     });
 
     client->onData([](void* arg, AsyncClient* client, void* data, size_t len) {
-      Serial.printf("** data received by client: %" PRIu16 "\n", client->localPort());
-      // Serial.write((uint8_t*)data, len);
+      Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
     });
 
     client->write("GET / HTTP/1.1\r\nHost: " HOST "\r\nUser-Agent: ESP\r\nConnection: close\r\n\r\n");
@@ -84,5 +83,6 @@ void setup() {
 }
 
 void loop() {
-  delay(500);
+  delay(1000);
+  Serial.printf("** free heap: %" PRIu32 "\n", ESP.getFreeHeap());
 }
