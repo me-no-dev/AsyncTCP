@@ -448,16 +448,19 @@ static err_t _tcp_recved_api(struct tcpip_api_call_data *api_call_msg){
     tcp_api_call_t * msg = (tcp_api_call_t *)api_call_msg;
     msg->err = ERR_CONN;
     // original code:
+    // causes the issue: assert failed: tcp_update_rcv_ann_wnd IDF/components/lwip/lwip/src/core/tcp.c:951 (new_rcv_ann_wnd <= 0xffff)
     // if(msg->closed_slot == INVALID_CLOSED_SLOT || !_closed_slots[msg->closed_slot]) {
     
-    // attempted fix which was rolled back since non reproductible after middleware support in ESPAsyncWebServer:
+    // attempted fix 1, which was rolled back since non reproductible after middleware support in ESPAsyncWebServer but works in some cases: 
+    // - https://github.com/tbnobody/OpenDTU/discussions/2326
     // - https://github.com/mathieucarbou/AsyncTCP/pull/24
-    // if(msg->closed_slot != INVALID_CLOSED_SLOT && !_closed_slots[msg->closed_slot]) {
+    if(msg->closed_slot != INVALID_CLOSED_SLOT && !_closed_slots[msg->closed_slot]) {
     
-    // final fix based on:
+    // attempted fix 2,
     // - OpenDTU testing: https://github.com/tbnobody/OpenDTU/discussions/2326
     // - Original fix https://github.com/me-no-dev/AsyncTCP/pull/173/files#diff-5312944d5b5f39741f3827dd678a8e828e2624ceab236264c025ef2bdf400d6aR422-R428
-    if(msg->closed_slot != INVALID_CLOSED_SLOT) {
+    // Seems to have side effects: https://github.com/me-no-dev/ESPAsyncWebServer/issues/1437
+    // if(msg->closed_slot != INVALID_CLOSED_SLOT) {
         msg->err = 0;
         tcp_recved(msg->pcb, msg->received);
     }

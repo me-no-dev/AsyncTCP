@@ -26,11 +26,11 @@ jobs:
           arduino-cli --config-file ${{ matrix.config }} board listall
           arduino-cli --config-file ${{ matrix.config }} core install esp32:esp32
       - name: Compile Sketch
-        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
+        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/Client/Client.ino
       - name: Compile Sketch with IPv6
         env:
           LWIP_IPV6: true
-        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/ClientServer/Client/Client.ino
+        run: arduino-cli --config-file ${{ matrix.config }} --library ./src/ compile --fqbn esp32:esp32:esp32 ./examples/Client/Client.ino
 
   platformio:
     name: "pio:${{ matrix.env }}:${{ matrix.board }}"
@@ -58,8 +58,6 @@ jobs:
             board: esp32-c3-devkitc-02
           - env: ci-arduino-3
             board: esp32-c6-devkitc-1
-          - env: ci-arduino-3
-            board: esp32-h2-devkitm-1
 
           - env: ci-arduino-310rc1
             board: esp32dev
@@ -71,8 +69,6 @@ jobs:
             board: esp32-c3-devkitc-02
           - env: ci-arduino-310rc1
             board: esp32-c6-devkitc-1
-          - env: ci-arduino-310rc1
-            board: esp32-h2-devkitm-1
 
     steps:
       - name: Checkout
@@ -96,4 +92,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade platformio
 
-      - run: PLATFORMIO_SRC_DIR=examples/ClientServer/Client PIO_BOARD=${{ matrix.board }} pio run -e ${{ matrix.env }}
+      - run: PLATFORMIO_SRC_DIR=examples/Client PIO_BOARD=${{ matrix.board }} pio run -e ${{ matrix.env }}
