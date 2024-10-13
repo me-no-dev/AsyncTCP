@@ -9,8 +9,11 @@
 #include <AsyncTCP.h>
 #include <WiFi.h>
 
-#define HOST "homeassistant.local"
-#define PORT 8123
+// #define HOST "homeassistant.local"
+// #define PORT 8123
+
+#define HOST "www.google.com"
+#define PORT 80
 
 size_t permits = CONFIG_LWIP_MAX_ACTIVE_TCP;
 
