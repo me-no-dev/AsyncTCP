@@ -951,6 +951,7 @@ int8_t AsyncClient::_connected(tcp_pcb* pcb, int8_t err){
 
 void AsyncClient::_error(int8_t err) {
     if(_pcb){
+        TCP_MUTEX_LOCK();
         tcp_arg(_pcb, NULL);
         if(_pcb->state == LISTEN) {
             tcp_sent(_pcb, NULL);
@@ -958,6 +959,7 @@ void AsyncClient::_error(int8_t err) {
             tcp_err(_pcb, NULL);
             tcp_poll(_pcb, NULL, 0);
         }
+        TCP_MUTEX_UNLOCK();
         _free_closed_slot();
         _pcb = NULL;
     }
