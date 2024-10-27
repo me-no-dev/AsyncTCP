@@ -4,7 +4,7 @@
 [![Continuous Integration](https://github.com/mathieucarbou/AsyncTCP/actions/workflows/ci.yml/badge.svg)](https://github.com/mathieucarbou/AsyncTCP/actions/workflows/ci.yml)
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/mathieucarbou/library/AsyncTCP.svg)](https://registry.platformio.org/libraries/mathieucarbou/AsyncTCP)
 
-A fork of the [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) library by [@me-no-dev](https://github.com/me-no-dev) for [ESPHome](https://esphome.io).
+A fork of the [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) library by [@me-no-dev](https://github.com/me-no-dev).
 
 ### Async TCP Library for ESP32 Arduino
 
