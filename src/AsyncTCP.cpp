@@ -1531,9 +1531,11 @@ void AsyncServer::end(){
         TCP_MUTEX_LOCK();
         tcp_arg(_pcb, NULL);
         tcp_accept(_pcb, NULL);
-        TCP_MUTEX_UNLOCK();
         if(tcp_close(_pcb) != ERR_OK){
+            TCP_MUTEX_UNLOCK();
             _tcp_abort(_pcb, -1);
+        } else {
+            TCP_MUTEX_UNLOCK();
         }
         _pcb = NULL;
     }
