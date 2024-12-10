@@ -787,7 +787,9 @@ bool AsyncClient::connect(const char* host, uint16_t port){
       return false;
     }
 
+    TCP_MUTEX_LOCK();
     err_t err = dns_gethostbyname(host, &addr, (dns_found_callback)&_tcp_dns_found, this);
+    TCP_MUTEX_UNLOCK();
     if(err == ERR_OK) {
 #if ESP_IDF_VERSION_MAJOR < 5
 #if LWIP_IPV6
