@@ -302,6 +302,12 @@ static int8_t _tcp_connected(void * arg, tcp_pcb * pcb, int8_t err) {
 }
 
 static int8_t _tcp_poll(void * arg, struct tcp_pcb * pcb) {
+    // throttle polling events queing when event queue is getting filled up, let it handle _onack's
+    if (uxQueueMessagesWaiting(_async_queue) > (rand() % CONFIG_ASYNC_TCP_QUEUE_SIZE / 2 + CONFIG_ASYNC_TCP_QUEUE_SIZE / 4) ) {
+        log_d("throttling");
+        return ERR_OK;
+    }
+
     //ets_printf("+P: 0x%08x\n", pcb);
     lwip_event_packet_t * e = (lwip_event_packet_t *)malloc(sizeof(lwip_event_packet_t));
     e->event = LWIP_TCP_POLL;
