@@ -15,7 +15,7 @@
 // #define HOST "www.google.com"
 // #define PORT 80
 
-#define HOST "192.168.125.118"
+#define HOST "192.168.125.122"
 #define PORT 4000
 
 // 16 slots on esp32 (CONFIG_LWIP_MAX_ACTIVE_TCP)
@@ -52,7 +52,7 @@ void makeRequest() {
     });
 
     client->onData([](void* arg, AsyncClient* client, void* data, size_t len) {
-      Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
+      // Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
     });
 
     client->write("GET / HTTP/1.1\r\nHost: " HOST "\r\nUser-Agent: ESP\r\nConnection: close\r\n\r\n");
