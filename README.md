@@ -51,23 +51,12 @@ mathieucarbou/AsyncTCP @ ^3.2.14
 Most of the crashes are caused by improper configuration of the library for the project.
 Here are some recommendations to avoid them.
 
-1. Set the running core to be on the same core of your application (usually core 1) `-D CONFIG_ASYNC_TCP_RUNNING_CORE=1`
-2. Set the stack size appropriately with `-D CONFIG_ASYNC_TCP_STACK_SIZE=16384`.
-   The default value of `16384` might be too much for your project.
-   You can look at the [MycilaTaskMonitor](https://mathieu.carbou.me/MycilaTaskMonitor) project to monitor the stack usage.
-3. You can change **if you know what you are doing** the task priority with `-D CONFIG_ASYNC_TCP_PRIORITY=10`.
-   Default is `10`.
-4. You can increase the queue size with `-D CONFIG_ASYNC_TCP_QUEUE_SIZE=128`.
-   Default is `64`.
-5. You can decrease the maximum ack time `-D CONFIG_ASYNC_TCP_MAX_ACK_TIME=3000`.
-   Default is `5000`.
-
 I personally use the following configuration in my projects:
 
 ```c++
-  -D CONFIG_ASYNC_TCP_MAX_ACK_TIME=3000
-  -D CONFIG_ASYNC_TCP_PRIORITY=10
-  -D CONFIG_ASYNC_TCP_QUEUE_SIZE=128
-  -D CONFIG_ASYNC_TCP_RUNNING_CORE=1
-  -D CONFIG_ASYNC_TCP_STACK_SIZE=4096
+  -D CONFIG_ASYNC_TCP_MAX_ACK_TIME=5000 // (keep default)
+  -D CONFIG_ASYNC_TCP_PRIORITY=10 // (keep default)
+  -D CONFIG_ASYNC_TCP_QUEUE_SIZE=64 // (keep default)
+  -D CONFIG_ASYNC_TCP_RUNNING_CORE=1 // force async_tcp task to be on same core as the app (default is core 0)
+  -D CONFIG_ASYNC_TCP_STACK_SIZE=4096 // reduce the stack size (default is 16K)
 ```
