@@ -48,13 +48,16 @@ extern "C" {
   #include <semphr.h>
 }
   #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 // any available core
-  #define CONFIG_ASYNC_TCP_USE_WDT      0
 #endif
 
 // If core is not defined, then we are running in Arduino or PIO
 #ifndef CONFIG_ASYNC_TCP_RUNNING_CORE
   #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 // any available core
-  #define CONFIG_ASYNC_TCP_USE_WDT      1  // if enabled, adds between 33us and 200us per event
+#endif
+
+// guard AsyncTCP task with watchdog
+#ifndef CONFIG_ASYNC_TCP_USE_WDT
+  #define CONFIG_ASYNC_TCP_USE_WDT      1
 #endif
 
 #ifndef CONFIG_ASYNC_TCP_STACK_SIZE

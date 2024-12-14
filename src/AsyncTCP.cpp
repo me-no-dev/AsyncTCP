@@ -158,8 +158,14 @@ static inline bool _get_async_event(lwip_event_packet_t** e) {
     return false;
   }
 
+#if CONFIG_ASYNC_TCP_USE_WDT
+  // need to return periodically to feed the dog
+  if (xQueueReceive(_async_queue, e, pdMS_TO_TICKS(1000)) != pdPASS)
+    return false;
+#else
   if (xQueueReceive(_async_queue, e, portMAX_DELAY) != pdPASS)
     return false;
+#endif
 
   /*
     Let's try to coalesce two (or more) consecutive poll events into one
@@ -175,7 +181,7 @@ static inline bool _get_async_event(lwip_event_packet_t** e) {
       if (xQueueReceive(_async_queue, &next_pkt, 0) == pdPASS){
         free(next_pkt);
         next_pkt = NULL;
-        log_w("coalescing polls, async callback might be too slow!");
+        log_d("coalescing polls, async callback might be too slow!");
       } else
         return true;
     } else
@@ -255,22 +261,23 @@ static void _handle_async_event(lwip_event_packet_t* e) {
 }
 
 static void _async_service_task(void* pvParameters) {
+#if CONFIG_ASYNC_TCP_USE_WDT
+  if (esp_task_wdt_add(NULL) != ESP_OK) {
+    log_w("Failed to add async task to WDT");
+  }
+#endif
   lwip_event_packet_t* packet = NULL;
   for (;;) {
     if (_get_async_event(&packet)) {
-#if CONFIG_ASYNC_TCP_USE_WDT
-      if (esp_task_wdt_add(NULL) != ESP_OK) {
-        log_e("Failed to add async task to WDT");
-      }
-#endif
       _handle_async_event(packet);
-#if CONFIG_ASYNC_TCP_USE_WDT
-      if (esp_task_wdt_delete(NULL) != ESP_OK) {
-        log_e("Failed to remove loop task from WDT");
-      }
-#endif
     }
+#if CONFIG_ASYNC_TCP_USE_WDT
+    esp_task_wdt_reset();
+#endif
   }
+#if CONFIG_ASYNC_TCP_USE_WDT
+  esp_task_wdt_delete(NULL);
+#endif
   vTaskDelete(NULL);
   _async_service_task_handle = NULL;
 }
