@@ -48,13 +48,16 @@ extern "C" {
   #include <semphr.h>
 }
   #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 // any available core
-  #define CONFIG_ASYNC_TCP_USE_WDT      0
 #endif
 
 // If core is not defined, then we are running in Arduino or PIO
 #ifndef CONFIG_ASYNC_TCP_RUNNING_CORE
   #define CONFIG_ASYNC_TCP_RUNNING_CORE -1 // any available core
-  #define CONFIG_ASYNC_TCP_USE_WDT      1  // if enabled, adds between 33us and 200us per event
+#endif
+
+// guard AsyncTCP task with watchdog
+#ifndef CONFIG_ASYNC_TCP_USE_WDT
+  #define CONFIG_ASYNC_TCP_USE_WDT 1
 #endif
 
 #ifndef CONFIG_ASYNC_TCP_STACK_SIZE
@@ -106,34 +109,86 @@ class AsyncClient {
     bool connect(const IPv6Address& ip, uint16_t port);
 #endif
     bool connect(const char* host, uint16_t port);
+    /**
+     * @brief close connection
+     *
+     * @param now - ignored
+     */
     void close(bool now = false);
-    void stop();
+    // same as close()
+    void stop() { close(false); };
     int8_t abort();
     bool free();
 
-    bool canSend();                                                                      // ack is not pending
-    size_t space();                                                                      // space available in the TCP window
-    size_t add(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY); // add for sending
-    bool send();                                                                         // send all data added with the method above
+    // ack is not pending
+    bool canSend();
+    // TCP buffer space available
+    size_t space();
 
-    // write equals add()+send()
-    size_t write(const char* data);
-    size_t write(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY); // only when canSend() == true
+    /**
+     * @brief add data to be send (but do not send yet)
+     * @note add() would call lwip's tcp_write()
+        By default apiflags=ASYNC_WRITE_FLAG_COPY
+        You could try to use apiflags with this flag unset to pass data by reference and avoid copy to socket buffer,
+        but looks like it does not work for Arduino's lwip in ESP32/IDF at least
+        it is enforced in https://github.com/espressif/esp-lwip/blob/0606eed9d8b98a797514fdf6eabb4daf1c8c8cd9/src/core/tcp_out.c#L422C5-L422C30
+        if LWIP_NETIF_TX_SINGLE_PBUF is set, and it is set indeed in IDF
+        https://github.com/espressif/esp-idf/blob/a0f798cfc4bbd624aab52b2c194d219e242d80c1/components/lwip/port/include/lwipopts.h#L744
+     *
+     * @param data
+     * @param size
+     * @param apiflags
+     * @return size_t amount of data that has been copied
+     */
+    size_t add(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY);
+
+    /**
+     * @brief send data previously add()'ed
+     *
+     * @return true on success
+     * @return false on error
+     */
+    bool send();
+
+    /**
+     * @brief add and enqueue data for sending
+     * @note it is same as add() + send()
+     * @note only make sense when canSend() == true
+     *
+     * @param data
+     * @param size
+     * @param apiflags
+     * @return size_t
+     */
+    size_t write(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY);
+
+    /**
+     * @brief add and enque data for sending
+     * @note treats data as null-terminated string
+     *
+     * @param data
+     * @return size_t
+     */
+    size_t write(const char* data) { return data == NULL ? 0 : write(data, strlen(data)); };
 
     uint8_t state();
     bool connecting();
     bool connected();
     bool disconnecting();
     bool disconnected();
-    bool freeable(); // disconnected or disconnecting
+
+    // disconnected or disconnecting
+    bool freeable();
 
     uint16_t getMss();
 
     uint32_t getRxTimeout();
-    void setRxTimeout(uint32_t timeout); // no RX data timeout for the connection in seconds
+    // no RX data timeout for the connection in seconds
+    void setRxTimeout(uint32_t timeout);
 
     uint32_t getAckTimeout();
-    void setAckTimeout(uint32_t timeout); // no ACK timeout for the last sent packet in milliseconds
+    // no ACK timeout for the last sent packet in milliseconds
+    void setAckTimeout(uint32_t timeout);
 
     void setNoDelay(bool nodelay);
     bool getNoDelay();
@@ -162,23 +217,34 @@ class AsyncClient {
     IPAddress localIP();
     uint16_t localPort();
 
-    void onConnect(AcConnectHandler cb, void* arg = 0);    // on successful connect
-    void onDisconnect(AcConnectHandler cb, void* arg = 0); // disconnected
-    void onAck(AcAckHandler cb, void* arg = 0);            // ack received
-    void onError(AcErrorHandler cb, void* arg = 0);        // unsuccessful connect or error
-    void onData(AcDataHandler cb, void* arg = 0);          // data received (called if onPacket is not used)
-    void onPacket(AcPacketHandler cb, void* arg = 0);      // data received
-    void onTimeout(AcTimeoutHandler cb, void* arg = 0);    // ack timeout
-    void onPoll(AcConnectHandler cb, void* arg = 0);       // every 125ms when connected
+    // set callback - on successful connect
+    void onConnect(AcConnectHandler cb, void* arg = 0);
+    // set callback - disconnected
+    void onDisconnect(AcConnectHandler cb, void* arg = 0);
+    // set callback - ack received
+    void onAck(AcAckHandler cb, void* arg = 0);
+    // set callback - unsuccessful connect or error
+    void onError(AcErrorHandler cb, void* arg = 0);
+    // set callback - data received (called if onPacket is not used)
+    void onData(AcDataHandler cb, void* arg = 0);
+    // set callback - data received
+    void onPacket(AcPacketHandler cb, void* arg = 0);
+    // set callback - ack timeout
+    void onTimeout(AcTimeoutHandler cb, void* arg = 0);
+    // set callback - every 125ms when connected
+    void onPoll(AcConnectHandler cb, void* arg = 0);
 
-    void ackPacket(struct pbuf* pb);      // ack pbuf from onPacket
-    size_t ack(size_t len);               // ack data that you have not acked using the method below
-    void ackLater() { _ack_pcb = false; } // will not ack the current packet. Call from onData
+    // ack pbuf from onPacket
+    void ackPacket(struct pbuf* pb);
+    // ack data that you have not acked using the method below
+    size_t ack(size_t len);
+    // will not ack the current packet. Call from onData
+    void ackLater() { _ack_pcb = false; }
 
     const char* errorToString(int8_t error);
     const char* stateToString();
 
-    // Do not use any of the functions below!
+    // internal callbacks - Do NOT call any of the functions below in user code!
     static int8_t _s_poll(void* arg, struct tcp_pcb* tpcb);
     static int8_t _s_recv(void* arg, struct tcp_pcb* tpcb, struct pbuf* pb, int8_t err);
     static int8_t _s_fin(void* arg, struct tcp_pcb* tpcb, int8_t err);
