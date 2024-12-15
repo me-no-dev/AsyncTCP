@@ -45,7 +45,7 @@ void makeRequest() {
     });
 
     client->onData([](void* arg, AsyncClient* client, void* data, size_t len) {
-      // Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
+      Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
     });
 
     client->write("GET /README.md HTTP/1.1\r\nHost: " HOST "\r\nUser-Agent: ESP\r\nConnection: close\r\n\r\n");
