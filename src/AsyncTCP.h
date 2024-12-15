@@ -22,10 +22,10 @@
 #ifndef ASYNCTCP_H_
 #define ASYNCTCP_H_
 
-#define ASYNCTCP_VERSION          "3.2.15"
+#define ASYNCTCP_VERSION          "3.3.0"
 #define ASYNCTCP_VERSION_MAJOR    3
-#define ASYNCTCP_VERSION_MINOR    2
-#define ASYNCTCP_VERSION_REVISION 15
+#define ASYNCTCP_VERSION_MINOR    3
+#define ASYNCTCP_VERSION_REVISION 0
 #define ASYNCTCP_FORK_mathieucarbou
 
 #include "IPAddress.h"
