@@ -65,7 +65,7 @@ extern "C" {
   TCP poll interval is specified in terms of the TCP coarse timer interval, which is called twice a second
   https://github.com/espressif/esp-lwip/blob/2acf959a2bb559313cd2bf9306c24612ba3d0e19/src/core/tcp.c#L1895
 */
-#define CONFIG_ASYNC_TCP_POLL_TIMER   1
+#define CONFIG_ASYNC_TCP_POLL_TIMER 1
 
 /*
  * TCP/IP Event Task
@@ -179,9 +179,9 @@ static inline bool _get_async_event(lwip_event_packet_t** e) {
     todo: implement some kind of fair dequeing or (better) simply punish user for a bad designed callbacks by resetting hog connections
   */
   lwip_event_packet_t* next_pkt = NULL;
-  while (xQueuePeek(_async_queue, &next_pkt, 0) == pdPASS){
-    if (next_pkt->arg == (*e)->arg && next_pkt->event == LWIP_TCP_POLL){
-      if (xQueueReceive(_async_queue, &next_pkt, 0) == pdPASS){
+  while (xQueuePeek(_async_queue, &next_pkt, 0) == pdPASS) {
+    if (next_pkt->arg == (*e)->arg && next_pkt->event == LWIP_TCP_POLL) {
+      if (xQueueReceive(_async_queue, &next_pkt, 0) == pdPASS) {
         free(next_pkt);
         next_pkt = NULL;
         log_d("coalescing polls, network congestion or async callbacks might be too slow!");
@@ -225,7 +225,7 @@ static bool _remove_events_with_arg(void* arg) {
       free(first_packet);
       first_packet = NULL;
 
-    // try to return first packet to the back of the queue
+      // try to return first packet to the back of the queue
     } else if (xQueueSend(_async_queue, &first_packet, 0) != pdPASS) {
       // we can't wait here if queue is full, because this call has been done from the only consumer task of this queue
       // otherwise it would deadlock, we have to discard the event
@@ -374,7 +374,7 @@ static int8_t _tcp_connected(void* arg, tcp_pcb* pcb, int8_t err) {
 
 static int8_t _tcp_poll(void* arg, struct tcp_pcb* pcb) {
   // throttle polling events queing when event queue is getting filled up, let it handle _onack's
-  //log_d("qs:%u", uxQueueMessagesWaiting(_async_queue));
+  // log_d("qs:%u", uxQueueMessagesWaiting(_async_queue));
   if (uxQueueMessagesWaiting(_async_queue) > (rand() % CONFIG_ASYNC_TCP_QUEUE_SIZE / 2 + CONFIG_ASYNC_TCP_QUEUE_SIZE / 4)) {
     log_d("throttling");
     return ERR_OK;

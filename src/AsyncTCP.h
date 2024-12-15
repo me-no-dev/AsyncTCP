@@ -57,7 +57,7 @@ extern "C" {
 
 // guard AsyncTCP task with watchdog
 #ifndef CONFIG_ASYNC_TCP_USE_WDT
-  #define CONFIG_ASYNC_TCP_USE_WDT      1
+  #define CONFIG_ASYNC_TCP_USE_WDT 1
 #endif
 
 #ifndef CONFIG_ASYNC_TCP_STACK_SIZE
@@ -111,12 +111,12 @@ class AsyncClient {
     bool connect(const char* host, uint16_t port);
     /**
      * @brief close connection
-     * 
+     *
      * @param now - ignored
      */
     void close(bool now = false);
     // same as close()
-    void stop(){ close(false); };
+    void stop() { close(false); };
     int8_t abort();
     bool free();
 
@@ -134,17 +134,17 @@ class AsyncClient {
         it is enforced in https://github.com/espressif/esp-lwip/blob/0606eed9d8b98a797514fdf6eabb4daf1c8c8cd9/src/core/tcp_out.c#L422C5-L422C30
         if LWIP_NETIF_TX_SINGLE_PBUF is set, and it is set indeed in IDF
         https://github.com/espressif/esp-idf/blob/a0f798cfc4bbd624aab52b2c194d219e242d80c1/components/lwip/port/include/lwipopts.h#L744
-     * 
-     * @param data 
-     * @param size 
-     * @param apiflags 
+     *
+     * @param data
+     * @param size
+     * @param apiflags
      * @return size_t amount of data that has been copied
      */
     size_t add(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY);
 
     /**
      * @brief send data previously add()'ed
-     * 
+     *
      * @return true on success
      * @return false on error
      */
@@ -154,22 +154,22 @@ class AsyncClient {
      * @brief add and enqueue data for sending
      * @note it is same as add() + send()
      * @note only make sense when canSend() == true
-     * 
-     * @param data 
-     * @param size 
-     * @param apiflags 
-     * @return size_t 
+     *
+     * @param data
+     * @param size
+     * @param apiflags
+     * @return size_t
      */
     size_t write(const char* data, size_t size, uint8_t apiflags = ASYNC_WRITE_FLAG_COPY);
 
     /**
      * @brief add and enque data for sending
      * @note treats data as null-terminated string
-     * 
-     * @param data 
-     * @return size_t 
+     *
+     * @param data
+     * @return size_t
      */
-    size_t write(const char* data){ return data == NULL ? 0 : write(data, strlen(data)); };
+    size_t write(const char* data) { return data == NULL ? 0 : write(data, strlen(data)); };
 
     uint8_t state();
     bool connecting();
