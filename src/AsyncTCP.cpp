@@ -145,12 +145,12 @@ static inline bool _init_async_event_queue() {
   return true;
 }
 
-static inline bool _send_async_event(lwip_event_packet_t** e) {
-  return _async_queue && xQueueSend(_async_queue, e, portMAX_DELAY) == pdPASS;
+static inline bool _send_async_event(lwip_event_packet_t** e, TickType_t wait = portMAX_DELAY) {
+  return _async_queue && xQueueSend(_async_queue, e, wait) == pdPASS;
 }
 
-static inline bool _prepend_async_event(lwip_event_packet_t** e) {
-  return _async_queue && xQueueSendToFront(_async_queue, e, portMAX_DELAY) == pdPASS;
+static inline bool _prepend_async_event(lwip_event_packet_t** e, TickType_t wait = portMAX_DELAY) {
+  return _async_queue && xQueueSendToFront(_async_queue, e, wait) == pdPASS;
 }
 
 static inline bool _get_async_event(lwip_event_packet_t** e) {
@@ -167,6 +167,9 @@ static inline bool _get_async_event(lwip_event_packet_t** e) {
     return false;
 #endif
 
+  if ((*e)->event != LWIP_TCP_POLL)
+    return true;
+
   /*
     Let's try to coalesce two (or more) consecutive poll events into one
     this usually happens with poor implemented user-callbacks that are runs too long and makes poll events to stack in the queue
@@ -177,16 +180,31 @@ static inline bool _get_async_event(lwip_event_packet_t** e) {
   */
   lwip_event_packet_t* next_pkt = NULL;
   while (xQueuePeek(_async_queue, &next_pkt, 0) == pdPASS){
-    if (next_pkt->arg == (*e)->arg && next_pkt->event == LWIP_TCP_POLL && (*e)->event == LWIP_TCP_POLL){
+    if (next_pkt->arg == (*e)->arg && next_pkt->event == LWIP_TCP_POLL){
       if (xQueueReceive(_async_queue, &next_pkt, 0) == pdPASS){
         free(next_pkt);
         next_pkt = NULL;
-        log_d("coalescing polls, async callback might be too slow!");
-      } else
-        return true;
-    } else
-      return true;
+        log_d("coalescing polls, network congestion or async callbacks might be too slow!");
+        continue;
+      }
+    } else {
+      /*
+        poor designed apps using asynctcp without proper dataflow control could flood the queue with interleaved pool/ack events.
+        We can try to mitigate it by discarding poll events when queue grows too much.
+        Let's discard poll events using linear probability curve starting from 3/4 of queue length
+        Poll events are periodic and connection could get another chance next time
+      */
+      if (uxQueueMessagesWaiting(_async_queue) > (rand() % CONFIG_ASYNC_TCP_QUEUE_SIZE / 4 + CONFIG_ASYNC_TCP_QUEUE_SIZE * 3 / 4)) {
+        free(next_pkt);
+        next_pkt = NULL;
+        log_d("discarding poll due to queue congestion");
+        // evict next event from a queue
+        return _get_async_event(e);
+      }
+    }
+    return true;
   }
+  // last resort return
   return true;
 }
 
@@ -206,8 +224,11 @@ static bool _remove_events_with_arg(void* arg) {
     if ((int)first_packet->arg == (int)arg) {
       free(first_packet);
       first_packet = NULL;
-      // return first packet to the back of the queue
-    } else if (xQueueSend(_async_queue, &first_packet, portMAX_DELAY) != pdPASS) {
+
+    // try to return first packet to the back of the queue
+    } else if (xQueueSend(_async_queue, &first_packet, 0) != pdPASS) {
+      // we can't wait here if queue is full, because this call has been done from the only consumer task of this queue
+      // otherwise it would deadlock, we have to discard the event
       return false;
     }
   }
@@ -219,7 +240,9 @@ static bool _remove_events_with_arg(void* arg) {
     if ((int)packet->arg == (int)arg) {
       free(packet);
       packet = NULL;
-    } else if (xQueueSend(_async_queue, &packet, portMAX_DELAY) != pdPASS) {
+    } else if (xQueueSend(_async_queue, &packet, 0) != pdPASS) {
+      // we can't wait here if queue is full, because this call has been done from the only consumer task of this queue
+      // otherwise it would deadlock, we have to discard the event
       return false;
     }
   }
@@ -362,7 +385,8 @@ static int8_t _tcp_poll(void* arg, struct tcp_pcb* pcb) {
   e->event = LWIP_TCP_POLL;
   e->arg = arg;
   e->poll.pcb = pcb;
-  if (!_send_async_event(&e)) {
+  // poll events are not critical 'cause those are repetitive, so we may not wait the queue in any case
+  if (!_send_async_event(&e, 0)) {
     free((void*)(e));
   }
   return ERR_OK;
@@ -684,7 +708,7 @@ AsyncClient& AsyncClient::operator=(const AsyncClient& other) {
     tcp_recv(_pcb, &_tcp_recv);
     tcp_sent(_pcb, &_tcp_sent);
     tcp_err(_pcb, &_tcp_error);
-    tcp_poll(_pcb, &_tcp_poll, 1);
+    tcp_poll(_pcb, &_tcp_poll, CONFIG_ASYNC_TCP_POLL_TIMER);
   }
   return *this;
 }
@@ -782,7 +806,7 @@ bool AsyncClient::_connect(ip_addr_t addr, uint16_t port) {
   tcp_err(pcb, &_tcp_error);
   tcp_recv(pcb, &_tcp_recv);
   tcp_sent(pcb, &_tcp_sent);
-  tcp_poll(pcb, &_tcp_poll, 1);
+  tcp_poll(pcb, &_tcp_poll, CONFIG_ASYNC_TCP_POLL_TIMER);
   TCP_MUTEX_UNLOCK();
 
   esp_err_t err = _tcp_connect(pcb, _closed_slot, &addr, port, (tcp_connected_fn)&_tcp_connected);
@@ -1131,10 +1155,6 @@ void AsyncClient::_dns_found(struct ip_addr* ipaddr) {
  * Public Helper Methods
  * */
 
-void AsyncClient::stop() {
-  close(false);
-}
-
 bool AsyncClient::free() {
   if (!_pcb) {
     return true;
@@ -1143,13 +1163,6 @@ bool AsyncClient::free() {
     return true;
   }
   return false;
-}
-
-size_t AsyncClient::write(const char* data) {
-  if (data == NULL) {
-    return 0;
-  }
-  return write(data, strlen(data));
 }
 
 size_t AsyncClient::write(const char* data, size_t size, uint8_t apiflags) {
