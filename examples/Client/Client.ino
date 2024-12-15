@@ -2,14 +2,14 @@
 #include <AsyncTCP.h>
 #include <WiFi.h>
 
-// #define HOST "homeassistant.local"
-// #define PORT 8123
-
-// #define HOST "www.google.com"
-// #define PORT 80
-
+// Run a server at the root of the project with: 
+// > python3 -m http.server 3333
+// Now you can open a browser and test it works by visiting http://192.168.125.122:3333/ or http://192.168.125.122:3333/README.md
 #define HOST "192.168.125.122"
-#define PORT 4000
+#define PORT 3333
+
+// WiFi SSID to connect to
+#define WIFI_SSID "IoT"
 
 // 16 slots on esp32 (CONFIG_LWIP_MAX_ACTIVE_TCP)
 #define MAX_CLIENTS CONFIG_LWIP_MAX_ACTIVE_TCP
@@ -48,7 +48,7 @@ void makeRequest() {
       // Serial.printf("** data received by client: %" PRIu16 ": len=%u\n", client->localPort(), len);
     });
 
-    client->write("GET / HTTP/1.1\r\nHost: " HOST "\r\nUser-Agent: ESP\r\nConnection: close\r\n\r\n");
+    client->write("GET /README.md HTTP/1.1\r\nHost: " HOST "\r\nUser-Agent: ESP\r\nConnection: close\r\n\r\n");
   });
 
   if (client->connect(HOST, PORT)) {
@@ -63,7 +63,7 @@ void setup() {
     continue;
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin("IoT");
+  WiFi.begin(WIFI_SSID);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
