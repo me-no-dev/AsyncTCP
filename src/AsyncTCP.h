@@ -241,7 +241,7 @@ class AsyncClient {
     // will not ack the current packet. Call from onData
     void ackLater() { _ack_pcb = false; }
 
-    const char* errorToString(int8_t error);
+    static const char* errorToString(int8_t error);
     const char* stateToString();
 
     // internal callbacks - Do NOT call any of the functions below in user code!
