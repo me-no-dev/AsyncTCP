@@ -22,9 +22,6 @@
     "espressif32",
     "libretiny"
   ],
-  "build": {
-    "libCompatMode": 2
-  },
   "export": {
     "include": [
       "examples",
