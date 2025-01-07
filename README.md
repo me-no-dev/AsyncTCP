@@ -43,7 +43,7 @@ The base classes on which everything else is built. They expose all possible sce
 ## Coordinates
 
 ```
-mathieucarbou/AsyncTCP @ ^3.3.1
+mathieucarbou/AsyncTCP @ ^3.3.2
 ```
 
 ## Important recommendations
