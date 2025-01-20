@@ -16,9 +16,7 @@ This library is the base for [ESPAsyncWebServer](https://github.com/ESP32Async/E
 
 The base classes on which everything else is built. They expose all possible scenarios, but are really raw and require more skills to use.
 
-## Changes in this fork
-
-- Based on [ESPHome fork](https://github.com/esphome/AsyncTCP)
+## Changes
 
 - `library.properties` for Arduino IDE users
 - Add `CONFIG_ASYNC_TCP_MAX_ACK_TIME`
