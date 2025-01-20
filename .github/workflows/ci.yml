@@ -19,7 +19,7 @@ jobs:
         config: [arduino-cli.yaml, arduino-cli-dev.yaml]
     steps:
       - uses: actions/checkout@v4
-      - uses: arduino/setup-arduino-cli@v1
+      - uses: arduino/setup-arduino-cli@v2
       - name: Download board
         run: |
           arduino-cli --config-file ${{ matrix.config }} core update-index
