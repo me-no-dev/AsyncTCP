@@ -5,17 +5,13 @@
   "keywords": "async,tcp",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mathieucarbou/AsyncTCP.git"
+    "url": "https://github.com/ESP32Async/AsyncTCP.git"
   },
-  "authors": [
-    {
-      "name": "Hristo Gochkov"
-    },
-    {
-      "name": "Mathieu Carbou",
-      "maintainer": true
-    }
-  ],
+  "authors":
+  {
+    "name": "ESP32Async",
+    "maintainer": true
+  },
   "license": "LGPL-3.0",
   "frameworks": "arduino",
   "platforms": [

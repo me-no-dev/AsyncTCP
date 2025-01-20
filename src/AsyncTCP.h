@@ -26,7 +26,7 @@
 #define ASYNCTCP_VERSION_MAJOR    3
 #define ASYNCTCP_VERSION_MINOR    3
 #define ASYNCTCP_VERSION_REVISION 2
-#define ASYNCTCP_FORK_mathieucarbou
+#define ASYNCTCP_FORK_ESP32Async
 
 #include "IPAddress.h"
 #if ESP_IDF_VERSION_MAJOR < 5
